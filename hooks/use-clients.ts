@@ -147,6 +147,7 @@ export function useClients() {
     }
 
     const clientMap = new Map(clients.map(c => [c.id, c.monthly_price]))
+    const totalExpectedRevenue = clients.reduce((sum, c) => sum + c.monthly_price, 0)
 
     const paymentsByMonth: Record<string, { clientIds: string[] }> = {}
     payments.forEach(payment => {
@@ -170,7 +171,7 @@ export function useClients() {
           const price = clientMap.get(clientId) || 0
           return sum + price
         }, 0)
-        expected = received
+        expected = totalExpectedRevenue
       }
 
       return {
