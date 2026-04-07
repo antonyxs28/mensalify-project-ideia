@@ -3,12 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/auth-context'
-import type { Client, ClientFormData, Payment, PaymentStatus, DashboardStats } from '@/lib/types'
-
-interface ClientWithStatus extends Client {
-  status: PaymentStatus
-  dueDate?: Date
-}
+import type { ClientWithStatus, ClientFormData, Payment, PaymentStatus, DashboardStats } from '@/lib/types'
 
 export function useClients() {
   const { user } = useAuth()
@@ -99,35 +94,25 @@ export function useClients() {
     const { data: { user: authUser } } = await supabase.auth.getUser()
     
     if (!authUser) {
-      console.error('User not authenticated')
       return { success: false, error: 'User not authenticated. Please log in.' }
     }
 
     try {
-      const { data: newClient, error } = await supabase
+      const { error } = await supabase
         .from('clients')
         .insert({
           user_id: authUser.id,
           name: data.name.trim(),
-          email: data.email?.toLowerCase().trim() || null,
+          email: data.email?.trim() || null,
           phone: data.phone?.trim() || null,
           monthly_price: data.monthly_price
         })
-        .select()
-        .single()
 
       if (error) {
         console.error('Supabase error:', error)
         throw error
       }
 
-      const clientWithStatus: ClientWithStatus = {
-        ...newClient,
-        status: 'pendente',
-        dueDate: new Date()
-      }
-
-      setClients(prev => [clientWithStatus, ...prev])
       return { success: true }
     } catch (error: any) {
       console.error('Error adding client:', error)
@@ -140,11 +125,12 @@ export function useClients() {
     data: Partial<ClientFormData>
   ): Promise<{ success: boolean; error?: string }> => {
     try {
-      const updateData: Partial<Client> = {}
+      const updateData: Record<string, any> = {}
       if (data.name) updateData.name = data.name.trim()
-      if (data.email !== undefined) updateData.email = data.email?.toLowerCase().trim() || ''
-      if (data.phone !== undefined) updateData.phone = data.phone?.trim() || ''
+      if (data.email !== undefined) updateData.email = data.email?.trim() || null
+      if (data.phone !== undefined) updateData.phone = data.phone?.trim() || null
       if (data.monthly_price !== undefined) updateData.monthly_price = data.monthly_price
+      updateData.updated_at = new Date().toISOString()
 
       const { error } = await supabase
         .from('clients')
@@ -157,10 +143,7 @@ export function useClients() {
 
       setClients(prev => prev.map(client => {
         if (client.id === id) {
-          return {
-            ...client,
-            ...updateData
-          }
+          return { ...client, ...updateData }
         }
         return client
       }))
