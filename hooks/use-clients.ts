@@ -1,15 +1,16 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/auth-context'
-import type { ClientWithStatus, ClientFormData, Payment, PaymentStatus, DashboardStats } from '@/lib/types'
+import type { ClientWithStatus, ClientFormData, PaymentStatus, DashboardStats } from '@/lib/types'
 
 export function useClients() {
   const { user } = useAuth()
   const [clients, setClients] = useState<ClientWithStatus[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const initialized = useRef(false)
 
   const getCurrentMonth = useCallback(() => {
     const now = new Date()
@@ -44,21 +45,12 @@ export function useClients() {
     return statusMap
   }, [getCurrentMonth])
 
-  const fetchClients = useCallback(async () => {
-    if (!user) {
-      setClients([])
-      setIsLoading(false)
-      return
-    }
-
-    setIsLoading(true)
-    setError(null)
-
+  const fetchClients = useCallback(async (currentUserId: string) => {
     try {
       const { data, error } = await supabase
         .from('clients')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('user_id', currentUserId)
         .order('created_at', { ascending: false })
 
       if (error) {
@@ -84,14 +76,27 @@ export function useClients() {
     } finally {
       setIsLoading(false)
     }
-  }, [user, fetchPaymentStatus])
+  }, [fetchPaymentStatus])
 
   useEffect(() => {
-    fetchClients()
-  }, [fetchClients])
+    if (!user || initialized.current) {
+      if (!user) {
+        setClients([])
+        setIsLoading(false)
+      }
+      return
+    }
+
+    initialized.current = true
+    setIsLoading(true)
+    setError(null)
+    
+    fetchClients(user.id)
+  }, [user, fetchClients])
 
   const addClient = useCallback(async (data: ClientFormData): Promise<{ success: boolean; error?: string }> => {
-    const { data: { user: authUser } } = await supabase.auth.getUser()
+    const { data: { session } } = await supabase.auth.getSession()
+    const authUser = session?.user
     
     if (!authUser) {
       return { success: false, error: 'User not authenticated. Please log in.' }
@@ -113,12 +118,13 @@ export function useClients() {
         throw error
       }
 
+      fetchClients(authUser.id)
       return { success: true }
     } catch (error: any) {
       console.error('Error adding client:', error)
       return { success: false, error: error.message || 'Failed to add client' }
     }
-  }, [])
+  }, [fetchClients])
 
   const updateClient = useCallback(async (
     id: string, 
@@ -239,6 +245,6 @@ export function useClients() {
     deleteClient,
     markAsPaid,
     getStats,
-    refetch: fetchClients
+    refetch: () => user && fetchClients(user.id)
   }
 }

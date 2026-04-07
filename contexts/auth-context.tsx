@@ -1,9 +1,9 @@
 'use client'
 
-import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useState, useCallback, useRef, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import type { User as SupabaseUser, AuthState } from '@/lib/types'
+import type { AuthState } from '@/lib/types'
 
 interface AuthContextType extends AuthState {
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>
@@ -14,6 +14,8 @@ interface AuthContextType extends AuthState {
 
 const AuthContext = createContext<AuthContextType | null>(null)
 
+const AUTH_TIMEOUT_MS = 10000
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter()
   const [state, setState] = useState<AuthState>({
@@ -21,46 +23,82 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isAuthenticated: false,
     isLoading: true
   })
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const initialized = useRef(false)
 
   const fetchProfile = useCallback(async (userId: string, email: string) => {
-    const { data: profile, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .single()
+    try {
+      const { data: profile, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single()
 
-    if (error && error.code !== 'PGRST116') {
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error fetching profile:', error)
+        return { name: email.split('@')[0] }
+      }
+
+      return { name: profile?.name || email.split('@')[0] }
+    } catch (error) {
       console.error('Error fetching profile:', error)
       return { name: email.split('@')[0] }
     }
-
-    return { name: profile?.name || email.split('@')[0] }
   }, [])
 
+  const stopLoading = useCallback(() => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current)
+      timeoutRef.current = null
+    }
+    setState(prev => ({ ...prev, isLoading: false }))
+  }, [])
+
+  const setAuthenticated = useCallback((user: { id: string; email?: string }, name: string) => {
+    stopLoading()
+    setState({
+      user: {
+        id: user.id,
+        email: user.email || '',
+        name
+      },
+      isAuthenticated: true,
+      isLoading: false
+    })
+  }, [stopLoading])
+
+  const setUnauthenticated = useCallback(() => {
+    stopLoading()
+    setState({
+      user: null,
+      isAuthenticated: false,
+      isLoading: false
+    })
+  }, [stopLoading])
+
   useEffect(() => {
+    if (initialized.current) return
+    initialized.current = true
+
     const initAuth = async () => {
+      timeoutRef.current = setTimeout(() => {
+        console.warn('Auth initialization timeout - forcing stop loading')
+        setUnauthenticated()
+      }, AUTH_TIMEOUT_MS)
+
       try {
         const { data: { session } } = await supabase.auth.getSession()
         
         if (session?.user) {
           const user = session.user
           const profileData = await fetchProfile(user.id, user.email || '')
-          
-          setState({
-            user: {
-              id: user.id,
-              email: user.email || '',
-              name: profileData.name
-            },
-            isAuthenticated: true,
-            isLoading: false
-          })
+          setAuthenticated(user, profileData.name)
         } else {
-          setState(prev => ({ ...prev, isLoading: false }))
+          setUnauthenticated()
         }
       } catch (error) {
         console.error('Auth initialization error:', error)
-        setState(prev => ({ ...prev, isLoading: false }))
+        setUnauthenticated()
       }
     }
 
@@ -70,29 +108,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (session?.user) {
         const user = session.user
         const profileData = await fetchProfile(user.id, user.email || '')
-        
-        setState({
-          user: {
-            id: user.id,
-            email: user.email || '',
-            name: profileData.name
-          },
-          isAuthenticated: true,
-          isLoading: false
-        })
+        setAuthenticated(user, profileData.name)
       } else {
-        setState({
-          user: null,
-          isAuthenticated: false,
-          isLoading: false
-        })
+        setUnauthenticated()
       }
     })
 
     return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current)
+      }
       subscription.unsubscribe()
     }
-  }, [fetchProfile])
+  }, [fetchProfile, setAuthenticated, setUnauthenticated])
 
   const login = useCallback(async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
     try {

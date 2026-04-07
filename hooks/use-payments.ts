@@ -1,31 +1,23 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/auth-context'
-import type { Payment, Client } from '@/lib/types'
+import type { Payment } from '@/lib/types'
 
 export function usePayments(clientId?: string) {
   const { user } = useAuth()
   const [payments, setPayments] = useState<Payment[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const initialized = useRef(false)
 
-  const fetchPayments = useCallback(async () => {
-    if (!user || !clientId) {
-      setPayments([])
-      setIsLoading(false)
-      return
-    }
-
-    setIsLoading(true)
-    setError(null)
-
+  const fetchPayments = useCallback(async (currentClientId: string) => {
     try {
       const { data, error } = await supabase
         .from('payments')
         .select('*')
-        .eq('client_id', clientId)
+        .eq('client_id', currentClientId)
         .order('month', { ascending: false })
 
       if (error) {
@@ -39,11 +31,23 @@ export function usePayments(clientId?: string) {
     } finally {
       setIsLoading(false)
     }
-  }, [user, clientId])
+  }, [])
 
   useEffect(() => {
-    fetchPayments()
-  }, [fetchPayments])
+    if (!clientId || !user || initialized.current) {
+      if (!clientId || !user) {
+        setPayments([])
+        setIsLoading(false)
+      }
+      return
+    }
+
+    initialized.current = true
+    setIsLoading(true)
+    setError(null)
+    
+    fetchPayments(clientId)
+  }, [clientId, user, fetchPayments])
 
   const addPayment = useCallback(async (
     paymentMonth: Date,
@@ -168,7 +172,7 @@ export function usePayments(clientId?: string) {
     markAsPaid,
     markAsPending,
     deletePayment,
-    refetch: fetchPayments
+    refetch: () => clientId && fetchPayments(clientId)
   }
 }
 
@@ -177,22 +181,14 @@ export function useAllPayments() {
   const [payments, setPayments] = useState<Payment[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const initialized = useRef(false)
 
-  const fetchAllPayments = useCallback(async () => {
-    if (!user) {
-      setPayments([])
-      setIsLoading(false)
-      return
-    }
-
-    setIsLoading(true)
-    setError(null)
-
+  const fetchAllPayments = useCallback(async (currentUserId: string) => {
     try {
       const { data: clients, error: clientsError } = await supabase
         .from('clients')
         .select('id')
-        .eq('user_id', user.id)
+        .eq('user_id', currentUserId)
 
       if (clientsError) {
         throw clientsError
@@ -223,16 +219,28 @@ export function useAllPayments() {
     } finally {
       setIsLoading(false)
     }
-  }, [user])
+  }, [])
 
   useEffect(() => {
-    fetchAllPayments()
-  }, [fetchAllPayments])
+    if (!user || initialized.current) {
+      if (!user) {
+        setPayments([])
+        setIsLoading(false)
+      }
+      return
+    }
+
+    initialized.current = true
+    setIsLoading(true)
+    setError(null)
+    
+    fetchAllPayments(user.id)
+  }, [user, fetchAllPayments])
 
   return {
     payments,
     isLoading,
     error,
-    refetch: fetchAllPayments
+    refetch: () => user && fetchAllPayments(user.id)
   }
 }
