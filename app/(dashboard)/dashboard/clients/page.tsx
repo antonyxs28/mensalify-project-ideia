@@ -5,7 +5,7 @@ import { motion } from 'framer-motion'
 import { Plus, Search } from 'lucide-react'
 
 import { useClients } from '@/contexts/clients-context'
-import type { Client } from '@/lib/types'
+import type { ClientWithStatus } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ClientsTable } from '@/components/dashboard/clients-table'
@@ -14,7 +14,7 @@ import { AddClientModal } from '@/components/dashboard/add-client-modal'
 export default function ClientsPage() {
   const { clients } = useClients()
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [editingClient, setEditingClient] = useState<Client | null>(null)
+  const [editingClient, setEditingClient] = useState<ClientWithStatus | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [filteredClients, setFilteredClients] = useState(clients)
 
@@ -23,7 +23,7 @@ export default function ClientsPage() {
       const filtered = clients.filter(
         (client) =>
           client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          client.email.toLowerCase().includes(searchTerm.toLowerCase())
+          client.email?.toLowerCase().includes(searchTerm.toLowerCase())
       )
       setFilteredClients(filtered)
     } else {
@@ -31,7 +31,7 @@ export default function ClientsPage() {
     }
   }, [searchTerm, clients])
 
-  const handleEdit = (client: Client) => {
+  const handleEdit = (client: ClientWithStatus) => {
     setEditingClient(client)
     setIsModalOpen(true)
   }

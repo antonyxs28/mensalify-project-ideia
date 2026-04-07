@@ -7,7 +7,7 @@ import { toast } from 'sonner'
 
 import { useClients } from '@/contexts/clients-context'
 import { formatCurrency, formatDate } from '@/lib/validation'
-import type { Client } from '@/lib/types'
+import type { ClientWithStatus } from '@/lib/types'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -27,12 +27,12 @@ import {
 } from '@/components/ui/table'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
-interface ClientWithDate extends Client {
+interface ClientWithDate extends ClientWithStatus {
   dueDate?: Date
 }
 
 interface ClientsTableProps {
-  onEdit: (client: Client) => void
+  onEdit: (client: ClientWithStatus) => void
 }
 
 export function ClientsTable({ onEdit }: ClientsTableProps) {

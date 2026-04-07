@@ -7,7 +7,7 @@ import { toast } from 'sonner'
 
 import { useClients } from '@/contexts/clients-context'
 import { isValidEmail, isValidName, isValidMonetaryValue, sanitizeInput } from '@/lib/validation'
-import type { Client } from '@/lib/types'
+import type { ClientWithStatus } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { FieldGroup, Field, FieldLabel, FieldError } from '@/components/ui/field'
@@ -15,7 +15,7 @@ import { FieldGroup, Field, FieldLabel, FieldError } from '@/components/ui/field
 interface AddClientModalProps {
   isOpen: boolean
   onClose: () => void
-  editingClient?: Client | null
+  editingClient?: ClientWithStatus | null
 }
 
 export function AddClientModal({ isOpen, onClose, editingClient }: AddClientModalProps) {

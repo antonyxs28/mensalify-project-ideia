@@ -18,57 +18,56 @@ import {
 import { Download, TrendingUp, Users, DollarSign } from 'lucide-react'
 
 import { useClients } from '@/contexts/clients-context'
+import type { ClientWithStatus } from '@/lib/types'
 import { formatCurrency } from '@/lib/validation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 
 const COLORS = {
-  basico: 'oklch(0.65 0.12 200)',
-  intermediario: 'oklch(0.75 0.15 85)',
-  premium: 'oklch(0.75 0.15 165)'
+  pago: 'oklch(0.65 0.12 200)',
+  pendente: 'oklch(0.75 0.15 85)'
 }
 
-const planLabels: Record<string, string> = {
-  basico: 'Básico',
-  intermediario: 'Intermediário',
-  premium: 'Premium'
+const statusLabels: Record<string, string> = {
+  pago: 'Pago',
+  pendente: 'Pendente'
 }
 
 export default function ReportsPage() {
-  const { clients, getStats } = useClients()
+  const { clients: rawClients, getStats } = useClients()
+  const clients = rawClients as ClientWithStatus[]
   const stats = getStats()
 
-  // Plan distribution data
-  const planDistribution = useMemo(() => {
+  const paymentStatusDistribution = useMemo(() => {
     const distribution = clients.reduce((acc, client) => {
-      acc[client.plan] = (acc[client.plan] || 0) + 1
+      acc[client.status] = (acc[client.status] || 0) + 1
       return acc
     }, {} as Record<string, number>)
 
-    return Object.entries(distribution).map(([plan, count]) => ({
-      name: planLabels[plan] || plan,
+    return Object.entries(distribution).map(([status, count]) => ({
+      name: statusLabels[status] || status,
       value: count,
-      plan
+      status
     }))
   }, [clients])
 
-  // Revenue by plan
-  const revenueByPlan = useMemo(() => {
+  const revenueByStatus = useMemo(() => {
     const revenue = clients.reduce((acc, client) => {
       if (client.status === 'pago') {
-        acc[client.plan] = (acc[client.plan] || 0) + client.monthlyValue
+        acc['pago'] = (acc['pago'] || 0) + client.monthly_price
+      } else {
+        acc['pendente'] = (acc['pendente'] || 0) + client.monthly_price
       }
       return acc
     }, {} as Record<string, number>)
 
-    return Object.entries(revenue).map(([plan, value]) => ({
-      name: planLabels[plan] || plan,
+    return Object.entries(revenue).map(([status, value]) => ({
+      name: statusLabels[status] || status,
       receita: value,
-      plan
+      status
     }))
   }, [clients])
 
-  // Monthly stats
   const monthlyStats = useMemo(() => {
     return [
       { label: 'Receita Total', value: formatCurrency(stats.totalReceived), icon: DollarSign, color: 'text-success' },
@@ -79,7 +78,6 @@ export default function ReportsPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -100,7 +98,6 @@ export default function ReportsPage() {
         </Button>
       </motion.div>
 
-      {/* Quick Stats */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -122,9 +119,7 @@ export default function ReportsPage() {
         ))}
       </motion.div>
 
-      {/* Charts */}
       <div className="grid gap-6 lg:grid-cols-2">
-        {/* Plan Distribution */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -133,10 +128,10 @@ export default function ReportsPage() {
           <Card className="border-border/50 bg-card/50">
             <CardHeader>
               <CardTitle className="text-lg font-semibold text-foreground">
-                Distribuição por Plano
+                Status de Pagamento
               </CardTitle>
               <CardDescription>
-                Quantidade de clientes em cada plano
+                Quantidade de clientes por status
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -144,7 +139,7 @@ export default function ReportsPage() {
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
-                      data={planDistribution}
+                      data={paymentStatusDistribution}
                       cx="50%"
                       cy="50%"
                       innerRadius={60}
@@ -154,10 +149,10 @@ export default function ReportsPage() {
                       label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
                       labelLine={false}
                     >
-                      {planDistribution.map((entry, index) => (
+                      {paymentStatusDistribution.map((entry, index) => (
                         <Cell 
                           key={`cell-${index}`} 
-                          fill={COLORS[entry.plan as keyof typeof COLORS] || COLORS.basico}
+                          fill={COLORS[entry.status as keyof typeof COLORS] || COLORS.pendente}
                         />
                       ))}
                     </Pie>
@@ -177,7 +172,6 @@ export default function ReportsPage() {
           </Card>
         </motion.div>
 
-        {/* Revenue by Plan */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -186,16 +180,16 @@ export default function ReportsPage() {
           <Card className="border-border/50 bg-card/50">
             <CardHeader>
               <CardTitle className="text-lg font-semibold text-foreground">
-                Receita por Plano
+                Receita por Status
               </CardTitle>
               <CardDescription>
-                Receita mensal de cada plano (clientes pagos)
+                Receita mensal por status de pagamento
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={revenueByPlan} layout="vertical">
+                  <BarChart data={revenueByStatus} layout="vertical">
                     <CartesianGrid 
                       strokeDasharray="3 3" 
                       stroke="oklch(0.22 0 0)" 
@@ -231,10 +225,10 @@ export default function ReportsPage() {
                       dataKey="receita" 
                       radius={[0, 4, 4, 0]}
                     >
-                      {revenueByPlan.map((entry, index) => (
+                      {revenueByStatus.map((entry, index) => (
                         <Cell 
                           key={`cell-${index}`} 
-                          fill={COLORS[entry.plan as keyof typeof COLORS] || COLORS.basico}
+                          fill={COLORS[entry.status as keyof typeof COLORS] || COLORS.pendente}
                         />
                       ))}
                     </Bar>
@@ -246,7 +240,6 @@ export default function ReportsPage() {
         </motion.div>
       </div>
 
-      {/* Summary Table */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -276,7 +269,7 @@ export default function ReportsPage() {
                 <p className="mt-1 text-2xl font-bold text-foreground">
                   {formatCurrency(
                     clients.length > 0
-                      ? clients.reduce((sum, c) => sum + c.monthlyValue, 0) / clients.length
+                      ? clients.reduce((sum, c) => sum + c.monthly_price, 0) / clients.length
                       : 0
                   )}
                 </p>

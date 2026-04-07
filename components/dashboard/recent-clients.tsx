@@ -10,12 +10,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 
-const planLabels: Record<string, string> = {
-  basico: 'Básico',
-  intermediario: 'Intermediário',
-  premium: 'Premium'
-}
-
 export function RecentClients() {
   const { clients } = useClients()
   const recentClients = clients.slice(0, 5)
@@ -57,7 +51,7 @@ export function RecentClients() {
                   <div>
                     <p className="text-sm font-medium text-foreground">{client.name}</p>
                     <p className="text-xs text-muted-foreground">
-                      {planLabels[client.plan]} - {formatCurrency(client.monthlyValue)}
+                      {formatCurrency(client.monthly_price)}
                     </p>
                   </div>
                 </div>
