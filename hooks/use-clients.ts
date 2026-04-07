@@ -184,36 +184,37 @@ export function useClients() {
   }, [clients, payments, getMonthKey])
 
   const addClient = useCallback(async (data: ClientFormData): Promise<{ success: boolean; error?: string }> => {
-    const { data: { session } } = await supabase.auth.getSession()
-    const authUser = session?.user
-    
-    if (!authUser) {
+    if (!user) {
       return { success: false, error: 'User not authenticated. Please log in.' }
     }
 
     try {
-      const { error } = await supabase
-        .from('clients')
-        .insert({
-          user_id: authUser.id,
-          name: data.name.trim(),
-          email: data.email?.trim() || null,
-          phone: data.phone?.trim() || null,
-          monthly_price: data.monthly_price
-        })
-
-      if (error) {
-        console.error('Supabase error:', error)
-        throw error
+      const insertData = {
+        user_id: user.id,
+        name: data.name.trim(),
+        email: data.email?.trim() || null,
+        phone: data.phone?.trim() || null,
+        monthly_price: Number(data.monthly_price)
       }
 
-      fetchClients(authUser.id)
+      console.log('Inserting client with data:', insertData)
+
+      const { error } = await supabase
+        .from('clients')
+        .insert(insertData)
+
+      if (error) {
+        console.error('Supabase insert error:', error)
+        return { success: false, error: error.message }
+      }
+
+      fetchClients(user.id)
       return { success: true }
     } catch (error: any) {
       console.error('Error adding client:', error)
       return { success: false, error: error.message || 'Failed to add client' }
     }
-  }, [fetchClients])
+  }, [user, fetchClients])
 
   const updateClient = useCallback(async (
     id: string, 
