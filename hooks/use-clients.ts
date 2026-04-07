@@ -146,28 +146,38 @@ export function useClients() {
       })
     }
 
-    const expectedRevenue = clients.reduce((sum, c) => sum + c.monthly_price, 0)
+    const clientMap = new Map(clients.map(c => [c.id, c.monthly_price]))
 
-    const paymentsByMonth: Record<string, number> = {}
+    const paymentsByMonth: Record<string, { clientIds: string[] }> = {}
     payments.forEach(payment => {
       if (payment.paid) {
         const monthKey = getMonthKey(payment.month)
-        paymentsByMonth[monthKey] = (paymentsByMonth[monthKey] || 0) + 1
+        if (!paymentsByMonth[monthKey]) {
+          paymentsByMonth[monthKey] = { clientIds: [] }
+        }
+        paymentsByMonth[monthKey].clientIds.push(payment.client_id)
       }
     })
 
     return months.map(({ label, key }) => {
-      const paidClientsInMonth = paymentsByMonth[key] || 0
-      const clientIdsInMonth = clients.map(c => c.id)
-      const paidAmount = paidClientsInMonth > 0 
-        ? clients.slice(0, paidClientsInMonth).reduce((sum, c) => sum + c.monthly_price, 0)
-        : 0
+      const monthPayments = paymentsByMonth[key]
+      
+      let received = 0
+      let expected = 0
+      
+      if (monthPayments) {
+        received = monthPayments.clientIds.reduce((sum, clientId) => {
+          const price = clientMap.get(clientId) || 0
+          return sum + price
+        }, 0)
+        expected = received
+      }
 
       return {
         month: label,
         monthKey: key,
-        received: paidAmount,
-        expected: expectedRevenue
+        received,
+        expected
       }
     })
   }, [clients, payments, getMonthKey])

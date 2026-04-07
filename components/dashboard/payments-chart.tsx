@@ -20,9 +20,35 @@ export function PaymentsChart() {
     return getChartData()
   }, [getChartData, clients])
 
-  const expectedRevenue = useMemo(() => {
-    return clients.reduce((sum, c) => sum + c.monthly_price, 0)
-  }, [clients])
+  const hasData = useMemo(() => {
+    return data.some(d => d.received > 0 || d.expected > 0)
+  }, [data])
+
+  if (!hasData) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.3 }}
+      >
+        <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
+          <CardHeader>
+            <CardTitle className="text-lg font-semibold text-foreground">
+              Receita Mensal
+            </CardTitle>
+            <CardDescription>
+              Dados de pagamentos por mês
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex h-[300px] items-center justify-center text-muted-foreground">
+              Nenhum pagamento registrado ainda
+            </div>
+          </CardContent>
+        </Card>
+      </motion.div>
+    )
+  }
 
   return (
     <motion.div
@@ -36,7 +62,7 @@ export function PaymentsChart() {
             Receita Mensal
           </CardTitle>
           <CardDescription>
-            Comparativo entrerecebido e previsto ({formatCurrency(expectedRevenue)}/mês)
+            Pagamentos recebidos por mês
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -45,7 +71,7 @@ export function PaymentsChart() {
               <BarChart
                 data={data}
                 margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
-                barGap={8}
+                barGap={4}
               >
                 <CartesianGrid 
                   strokeDasharray="3 3" 
