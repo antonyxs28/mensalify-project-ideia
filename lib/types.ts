@@ -17,16 +17,16 @@ export interface Client {
   id: string
   user_id: string
   name: string
-  email: string
-  phone: string
+  email: string | null
+  phone: string | null
   monthly_price: number
-  status: PaymentStatus
   created_at: string
   updated_at: string | null
 }
 
-export interface ClientWithPayments extends Client {
-  payments: Payment[]
+export interface ClientWithStatus extends Client {
+  status: PaymentStatus
+  dueDate?: Date
 }
 
 export interface Payment {

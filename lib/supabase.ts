@@ -19,8 +19,8 @@ export type Database = {
           id: string
           user_id: string
           name: string
-          email: string
-          phone: string
+          email: string | null
+          phone: string | null
           monthly_price: number
           created_at: string
           updated_at: string | null
@@ -29,8 +29,8 @@ export type Database = {
           id?: string
           user_id: string
           name: string
-          email?: string
-          phone?: string
+          email?: string | null
+          phone?: string | null
           monthly_price: number
           created_at?: string
           updated_at?: string | null
@@ -39,8 +39,8 @@ export type Database = {
           id?: string
           user_id?: string
           name?: string
-          email?: string
-          phone?: string
+          email?: string | null
+          phone?: string | null
           monthly_price?: number
           created_at?: string
           updated_at?: string | null
