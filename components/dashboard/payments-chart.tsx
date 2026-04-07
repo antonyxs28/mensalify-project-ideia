@@ -2,32 +2,27 @@
 
 import { useMemo } from 'react'
 import { motion } from 'framer-motion'
-import { Area, AreaChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer, Tooltip, Legend } from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Cell } from 'recharts'
 
 import { useClients } from '@/contexts/clients-context'
 import { formatCurrency } from '@/lib/validation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
+const COLORS = {
+  received: '#22c55e',
+  expected: '#94a3b8'
+}
+
 export function PaymentsChart() {
-  const { clients, getStats } = useClients()
-  const stats = getStats()
+  const { clients, getChartData } = useClients()
 
   const data = useMemo(() => {
-    const months = ['Nov', 'Dez', 'Jan', 'Fev', 'Mar', 'Abr']
-    
-    return months.map((month, index) => {
-      const monthlyReceived = stats.totalReceived
-      const monthlyPending = stats.totalPending
-      
-      const variation = 1 + (index - 2) * 0.1
-      
-      return {
-        month,
-        received: Math.round(monthlyReceived * variation),
-        pending: Math.round(monthlyPending * variation)
-      }
-    })
-  }, [stats])
+    return getChartData()
+  }, [getChartData, clients])
+
+  const expectedRevenue = useMemo(() => {
+    return clients.reduce((sum, c) => sum + c.monthly_price, 0)
+  }, [clients])
 
   return (
     <motion.div
@@ -38,29 +33,20 @@ export function PaymentsChart() {
       <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
         <CardHeader>
           <CardTitle className="text-lg font-semibold text-foreground">
-            Visão Geral de Pagamentos
+            Receita Mensal
           </CardTitle>
           <CardDescription>
-            Receita mensal baseada em clientes pagos e pendentes
+            Comparativo entrerecebido e previsto ({formatCurrency(expectedRevenue)}/mês)
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="h-[300px] w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart
+              <BarChart
                 data={data}
                 margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
+                barGap={8}
               >
-                <defs>
-                  <linearGradient id="colorReceived" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="oklch(0.75 0.15 165)" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="oklch(0.75 0.15 165)" stopOpacity={0} />
-                  </linearGradient>
-                  <linearGradient id="colorPending" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="oklch(0.75 0.15 85)" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="oklch(0.75 0.15 85)" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
                 <CartesianGrid 
                   strokeDasharray="3 3" 
                   stroke="oklch(0.22 0 0)" 
@@ -72,13 +58,15 @@ export function PaymentsChart() {
                   fontSize={12}
                   tickLine={false}
                   axisLine={false}
+                  dy={10}
                 />
                 <YAxis 
                   stroke="oklch(0.6 0 0)"
                   fontSize={12}
                   tickLine={false}
                   axisLine={false}
-                  tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`}
+                  tickFormatter={(value) => `R$${value / 1000}k`}
+                  dx={-10}
                 />
                 <Tooltip
                   contentStyle={{
@@ -87,33 +75,34 @@ export function PaymentsChart() {
                     borderRadius: '8px',
                     boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.3)'
                   }}
-                  labelStyle={{ color: 'oklch(0.95 0 0)' }}
+                  labelStyle={{ color: 'oklch(0.95 0 0)', fontWeight: 600 }}
                   formatter={(value: number, name: string) => [
                     formatCurrency(value),
-                    name === 'received' ? 'Recebido' : 'Pendente'
+                    name === 'received' ? 'Recebido' : 'Previsto'
                   ]}
+                  cursor={{ fill: 'oklch(0.15 0 0)' }}
                 />
                 <Legend 
-                  formatter={(value) => value === 'received' ? 'Recebido' : 'Pendente'}
-                  wrapperStyle={{ paddingTop: '20px' }}
+                  wrapperStyle={{ paddingTop: '16px' }}
+                  formatter={(value) => 
+                    value === 'received' ? 'Recebido' : 'Previsto'
+                  }
                 />
-                <Area
-                  type="monotone"
+                <Bar
                   dataKey="received"
-                  stroke="oklch(0.75 0.15 165)"
-                  strokeWidth={2}
-                  fillOpacity={1}
-                  fill="url(#colorReceived)"
+                  name="received"
+                  fill={COLORS.received}
+                  radius={[4, 4, 0, 0]}
+                  maxBarSize={48}
                 />
-                <Area
-                  type="monotone"
-                  dataKey="pending"
-                  stroke="oklch(0.75 0.15 85)"
-                  strokeWidth={2}
-                  fillOpacity={1}
-                  fill="url(#colorPending)"
+                <Bar
+                  dataKey="expected"
+                  name="expected"
+                  fill={COLORS.expected}
+                  radius={[4, 4, 0, 0]}
+                  maxBarSize={48}
                 />
-              </AreaChart>
+              </BarChart>
             </ResponsiveContainer>
           </div>
         </CardContent>

@@ -3,11 +3,19 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/auth-context'
-import type { ClientWithStatus, ClientFormData, PaymentStatus, DashboardStats } from '@/lib/types'
+import type { ClientWithStatus, ClientFormData, PaymentStatus, DashboardStats, Payment } from '@/lib/types'
+
+interface ChartData {
+  month: string
+  monthKey: string
+  received: number
+  expected: number
+}
 
 export function useClients() {
   const { user } = useAuth()
   const [clients, setClients] = useState<ClientWithStatus[]>([])
+  const [payments, setPayments] = useState<Payment[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const initialized = useRef(false)
@@ -15,6 +23,11 @@ export function useClients() {
   const getCurrentMonth = useCallback(() => {
     const now = new Date()
     return new Date(now.getFullYear(), now.getMonth(), 1)
+  }, [])
+
+  const getMonthKey = useCallback((date: Date | string) => {
+    const d = new Date(date)
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
   }, [])
 
   const fetchPaymentStatus = useCallback(async (clientIds: string[]) => {
@@ -45,6 +58,23 @@ export function useClients() {
     return statusMap
   }, [getCurrentMonth])
 
+  const fetchAllPayments = useCallback(async (clientIds: string[]) => {
+    if (clientIds.length === 0) return []
+
+    const { data, error } = await supabase
+      .from('payments')
+      .select('*')
+      .in('client_id', clientIds)
+      .order('month', { ascending: false })
+
+    if (error) {
+      console.error('Error fetching all payments:', error)
+      return []
+    }
+
+    return data || []
+  }, [])
+
   const fetchClients = useCallback(async (currentUserId: string) => {
     try {
       const { data, error } = await supabase
@@ -59,6 +89,9 @@ export function useClients() {
 
       const clientIds = data?.map(c => c.id) || []
       const paymentStatus = await fetchPaymentStatus(clientIds)
+      const allPayments = await fetchAllPayments(clientIds)
+      
+      setPayments(allPayments)
 
       const clientsWithStatus: ClientWithStatus[] = (data || []).map(client => ({
         ...client,
@@ -76,12 +109,13 @@ export function useClients() {
     } finally {
       setIsLoading(false)
     }
-  }, [fetchPaymentStatus])
+  }, [fetchPaymentStatus, fetchAllPayments])
 
   useEffect(() => {
     if (!user || initialized.current) {
       if (!user) {
         setClients([])
+        setPayments([])
         setIsLoading(false)
       }
       return
@@ -93,6 +127,50 @@ export function useClients() {
     
     fetchClients(user.id)
   }, [user, fetchClients])
+
+  const getChartData = useCallback((): ChartData[] => {
+    const now = new Date()
+    const currentYear = now.getFullYear()
+    const currentMonth = now.getMonth()
+    
+    const months = []
+    const monthLabels = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
+    
+    for (let i = 0; i < 6; i++) {
+      const monthIndex = (currentMonth - 5 + i + 12) % 12
+      const yearOffset = currentMonth - 5 + i < 0 ? -1 : 0
+      const year = currentYear + yearOffset
+      months.push({
+        label: monthLabels[monthIndex],
+        key: `${year}-${String(monthIndex + 1).padStart(2, '0')}`
+      })
+    }
+
+    const expectedRevenue = clients.reduce((sum, c) => sum + c.monthly_price, 0)
+
+    const paymentsByMonth: Record<string, number> = {}
+    payments.forEach(payment => {
+      if (payment.paid) {
+        const monthKey = getMonthKey(payment.month)
+        paymentsByMonth[monthKey] = (paymentsByMonth[monthKey] || 0) + 1
+      }
+    })
+
+    return months.map(({ label, key }) => {
+      const paidClientsInMonth = paymentsByMonth[key] || 0
+      const clientIdsInMonth = clients.map(c => c.id)
+      const paidAmount = paidClientsInMonth > 0 
+        ? clients.slice(0, paidClientsInMonth).reduce((sum, c) => sum + c.monthly_price, 0)
+        : 0
+
+      return {
+        month: label,
+        monthKey: key,
+        received: paidAmount,
+        expected: expectedRevenue
+      }
+    })
+  }, [clients, payments, getMonthKey])
 
   const addClient = useCallback(async (data: ClientFormData): Promise<{ success: boolean; error?: string }> => {
     const { data: { session } } = await supabase.auth.getSession()
@@ -245,6 +323,7 @@ export function useClients() {
     deleteClient,
     markAsPaid,
     getStats,
+    getChartData,
     refetch: () => user && fetchClients(user.id)
   }
 }

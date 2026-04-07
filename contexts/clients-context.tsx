@@ -1,7 +1,7 @@
 'use client'
 
 import { createContext, useContext, useCallback, type ReactNode } from 'react'
-import type { ClientWithStatus, ClientFormData, DashboardStats } from '@/lib/types'
+import type { ClientWithStatus, ClientFormData, DashboardStats, ChartData } from '@/lib/types'
 import { useClients as useClientsHook } from '@/hooks/use-clients'
 
 interface ClientsContextType {
@@ -13,6 +13,7 @@ interface ClientsContextType {
   markAsPaid: (id: string) => Promise<{ success: boolean; error?: string }>
   deleteClient: (id: string) => Promise<{ success: boolean; error?: string }>
   getStats: () => DashboardStats
+  getChartData: () => ChartData[]
   refetch: () => void
 }
 
@@ -28,12 +29,17 @@ export function ClientsProvider({ children }: { children: ReactNode }) {
     deleteClient,
     markAsPaid,
     getStats: getHookStats,
+    getChartData: getHookChartData,
     refetch
   } = useClientsHook()
 
   const getStats = useCallback((): DashboardStats => {
     return getHookStats()
   }, [getHookStats])
+
+  const getChartData = useCallback((): ChartData[] => {
+    return getHookChartData()
+  }, [getHookChartData])
 
   return (
     <ClientsContext.Provider value={{ 
@@ -45,6 +51,7 @@ export function ClientsProvider({ children }: { children: ReactNode }) {
       markAsPaid, 
       deleteClient,
       getStats,
+      getChartData,
       refetch
     }}>
       {children}

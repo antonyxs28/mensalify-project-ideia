@@ -77,3 +77,10 @@ export interface PaymentChartData {
   received: number
   pending: number
 }
+
+export interface ChartData {
+  month: string
+  monthKey: string
+  received: number
+  expected: number
+}
