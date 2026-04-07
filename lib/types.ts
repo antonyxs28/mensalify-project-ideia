@@ -26,6 +26,7 @@ export interface Client {
 
 export interface ClientWithStatus extends Client {
   status: PaymentStatus
+  monthKey: string
   dueDate?: Date
 }
 

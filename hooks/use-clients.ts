@@ -97,6 +97,7 @@ export function useClients() {
         ...client,
         status: paymentStatus[client.id]?.paid ? 'pago' : 'pendente',
         monthly_price: client.monthly_price,
+        monthKey: getMonthKey(client.created_at),
         dueDate: paymentStatus[client.id]?.paid_at 
           ? new Date(paymentStatus[client.id].paid_at!) 
           : new Date(client.created_at)
@@ -146,33 +147,32 @@ export function useClients() {
       })
     }
 
-    const clientMap = new Map(clients.map(c => [c.id, c.monthly_price]))
-    const totalExpectedRevenue = clients.reduce((sum, c) => sum + c.monthly_price, 0)
-
-    const paymentsByMonth: Record<string, { clientIds: string[] }> = {}
+    const paidClientsByMonth: Record<string, Set<string>> = {}
     payments.forEach(payment => {
       if (payment.paid) {
         const monthKey = getMonthKey(payment.month)
-        if (!paymentsByMonth[monthKey]) {
-          paymentsByMonth[monthKey] = { clientIds: [] }
+        if (!paidClientsByMonth[monthKey]) {
+          paidClientsByMonth[monthKey] = new Set()
         }
-        paymentsByMonth[monthKey].clientIds.push(payment.client_id)
+        paidClientsByMonth[monthKey].add(payment.client_id)
       }
     })
 
     return months.map(({ label, key }) => {
-      const monthPayments = paymentsByMonth[key]
+      const paidClientIds = paidClientsByMonth[key] || new Set<string>()
       
       let received = 0
       let expected = 0
       
-      if (monthPayments) {
-        received = monthPayments.clientIds.reduce((sum, clientId) => {
-          const price = clientMap.get(clientId) || 0
-          return sum + price
-        }, 0)
-        expected = totalExpectedRevenue
-      }
+      clients.forEach(client => {
+        if (client.monthKey !== key) return
+        
+        if (paidClientIds.has(client.id)) {
+          received += client.monthly_price
+        } else {
+          expected += client.monthly_price
+        }
+      })
 
       return {
         month: label,
