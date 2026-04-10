@@ -53,16 +53,7 @@ export function calculateFirstDueDate(dueDay: number = 5): Date {
   const today = new Date();
   today.setHours(12, 0, 0, 0);
 
-  const currentMonthDay = getValidDueDate(
-    today.getFullYear(),
-    today.getMonth() + 1,
-    dueDay,
-  );
-
-  if (currentMonthDay >= today) {
-    return currentMonthDay;
-  }
-
+  // Sempre usar o próximo mês, independente do dia atual
   return getValidDueDate(today.getFullYear(), today.getMonth() + 2, dueDay);
 }
 

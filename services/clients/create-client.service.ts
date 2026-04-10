@@ -23,16 +23,7 @@ function getFirstValidDueDate(dueDay: number): Date {
   const today = new Date();
   today.setHours(12, 0, 0, 0);
 
-  const currentMonthDue = getValidDueDate(
-    today.getFullYear(),
-    today.getMonth() + 1,
-    dueDay,
-  );
-
-  if (currentMonthDue >= today) {
-    return currentMonthDue;
-  }
-
+  // Sempre usar o próximo mês, independente do dia atual
   const nextMonth = buildLocalDate(
     today.getFullYear(),
     today.getMonth() + 2,

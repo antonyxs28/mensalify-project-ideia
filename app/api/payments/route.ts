@@ -4,12 +4,8 @@ import { getAuthenticatedContext } from "@/services/clients/auth";
 function calculateFirstDueDate(dueDay: number = 5): Date {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  
-  const currentMonthDay = new Date(today.getFullYear(), today.getMonth(), dueDay);
-  
-  if (currentMonthDay >= today) {
-    return currentMonthDay;
-  }
+
+  // Sempre usar o próximo mês, independente do dia atual
   return new Date(today.getFullYear(), today.getMonth() + 1, dueDay);
 }
 
