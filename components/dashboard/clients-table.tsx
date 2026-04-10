@@ -2,8 +2,9 @@
 
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { CheckCircle, Edit, MoreHorizontal, Trash2, Loader2 } from 'lucide-react'
+import { CheckCircle, Edit, MoreHorizontal, Trash2, Loader2, Eye } from 'lucide-react'
 import { toast } from 'sonner'
+import { useRouter } from 'next/navigation'
 
 import { useClients } from '@/contexts/clients-context'
 import { formatCurrency, formatDate } from '@/lib/validation'
@@ -38,6 +39,11 @@ interface ClientsTableProps {
 export function ClientsTable({ onEdit }: ClientsTableProps) {
   const { clients, markAsPaid, deleteClient, isLoading } = useClients()
   const [processingId, setProcessingId] = useState<string | null>(null)
+  const router = useRouter()
+
+  const handleViewDetails = (id: string) => {
+    router.push(`/dashboard/clients/${id}`)
+  }
 
   const handleMarkAsPaid = async (id: string) => {
     setProcessingId(id)
@@ -157,6 +163,10 @@ export function ClientsTable({ onEdit }: ClientsTableProps) {
                         Mark as Paid
                       </DropdownMenuItem>
                     )}
+                    <DropdownMenuItem onClick={() => handleViewDetails(client.id)}>
+                      <Eye className="mr-2 h-4 w-4" />
+                      View Details
+                    </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => onEdit(client)}>
                       <Edit className="mr-2 h-4 w-4" />
                       Edit

@@ -2,7 +2,7 @@
 
 import { motion } from 'framer-motion'
 
-import { StatsCards } from '@/components/dashboard/stats-cards'
+import { BillingStatsCards } from '@/components/dashboard/billing-stats-cards'
 import { PaymentsChart } from '@/components/dashboard/payments-chart'
 import { RecentClients } from '@/components/dashboard/recent-clients'
 
@@ -23,8 +23,8 @@ export default function DashboardPage() {
         </p>
       </motion.div>
 
-      {/* Stats Cards */}
-      <StatsCards />
+      {/* Billing Stats Cards */}
+      <BillingStatsCards />
 
       {/* Charts and Recent Activity */}
       <div className="grid gap-6 lg:grid-cols-2">
