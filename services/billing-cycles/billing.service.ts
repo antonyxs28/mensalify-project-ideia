@@ -17,12 +17,22 @@ interface PaymentRecord {
   created_at: string;
 }
 
+function buildLocalDate(year: number, month: number, day: number): Date {
+  return new Date(year, month - 1, day, 12, 0, 0, 0);
+}
+
+function formatLocalDate(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(
+    date.getDate(),
+  ).padStart(2, "0")}`;
+}
+
 function computeStatus(
   paidAmount: number,
   expectedAmount: number,
-  dueDate?: string
+  dueDate?: string,
 ): BillingCycle["status"] {
-  const today = new Date().toISOString().split("T")[0];
+  const today = formatLocalDate(new Date());
   const isOverdue = dueDate ? today > dueDate : false;
 
   if (paidAmount >= expectedAmount) {
@@ -35,24 +45,32 @@ function computeStatus(
 }
 
 export function calculateCycleStatus(
-  cycle: Pick<BillingCycle, "paid_amount" | "expected_amount" | "due_date">
+  cycle: Pick<BillingCycle, "paid_amount" | "expected_amount" | "due_date">,
 ): BillingCycle["status"] {
-  return computeStatus(cycle.paid_amount, cycle.expected_amount, cycle.due_date);
+  return computeStatus(
+    cycle.paid_amount,
+    cycle.expected_amount,
+    cycle.due_date,
+  );
 }
 
 function calculateDueDate(cycleYear: number, cycleMonth: number): string {
-  const nextMonth = new Date(cycleYear, cycleMonth - 1 + 1, 1);
-  const dueDate = new Date(nextMonth.getFullYear(), nextMonth.getMonth(), 5);
-  return dueDate.toISOString().split("T")[0];
+  const nextMonth = buildLocalDate(cycleYear, cycleMonth + 1, 1);
+  const dueDate = buildLocalDate(
+    nextMonth.getFullYear(),
+    nextMonth.getMonth() + 1,
+    5,
+  );
+  return formatLocalDate(dueDate);
 }
 
 export async function generateBillingCycles(
   supabase: SupabaseClient,
   client: Client,
-  options: { upToMonth?: Date } = {}
+  options: { upToMonth?: Date } = {},
 ): Promise<ServiceResult<{ generated: number; existing: number }>> {
   const upToDate = options.upToMonth || new Date();
-  
+
   if (!client.is_active || !client.billing_start_date) {
     return { success: true, data: { generated: 0, existing: 0 } };
   }
@@ -112,11 +130,11 @@ export async function generateBillingCycles(
   }
 
   const existingSet = new Set(
-    (existingCycles || []).map((c) => `${c.cycle_year}-${c.cycle_month}`)
+    (existingCycles || []).map((c) => `${c.cycle_year}-${c.cycle_month}`),
   );
 
   const newCycles = cycles.filter(
-    (c) => !existingSet.has(`${c.cycle_year}-${c.cycle_month}`)
+    (c) => !existingSet.has(`${c.cycle_year}-${c.cycle_month}`),
   );
 
   if (newCycles.length > 0) {
@@ -145,7 +163,7 @@ export async function addPaymentToCycle(
   supabase: SupabaseClient,
   cycleId: string,
   amount: number,
-  options: { skipStatusUpdate?: boolean } = {}
+  options: { skipStatusUpdate?: boolean } = {},
 ): Promise<ServiceResult<BillingCycle>> {
   const { data: cycle, error: fetchError } = await supabase
     .from("billing_cycles")
@@ -158,7 +176,11 @@ export async function addPaymentToCycle(
   }
 
   const newPaidAmount = cycle.paid_amount + amount;
-  const newStatus = computeStatus(newPaidAmount, cycle.expected_amount, cycle.due_date);
+  const newStatus = computeStatus(
+    newPaidAmount,
+    cycle.expected_amount,
+    cycle.due_date,
+  );
 
   const monthStr = `${cycle.cycle_year}-${String(cycle.cycle_month).padStart(2, "0")}-01`;
 
@@ -219,7 +241,7 @@ interface ClientFinancialSummary {
 
 export async function computeClientFinancialSummary(
   supabase: SupabaseClient,
-  clientId: string
+  clientId: string,
 ): Promise<ServiceResult<ClientFinancialSummary>> {
   const { data: cycles, error: cyclesError } = await supabase
     .from("billing_cycles")
@@ -258,21 +280,21 @@ export async function computeClientFinancialSummary(
     const paidCycleIds = new Set(
       allPayments
         .filter((p: PaymentRecord) => p.paid_at)
-        .map((p: PaymentRecord) => p.billing_cycle_id)
+        .map((p: PaymentRecord) => p.billing_cycle_id),
     );
 
     for (const cycle of cycles || []) {
       if (paidCycleIds.has(cycle.id) && cycle.due_date) {
         const cyclePayments = allPayments.filter(
-          (p: PaymentRecord) => p.billing_cycle_id === cycle.id && p.paid_at
+          (p: PaymentRecord) => p.billing_cycle_id === cycle.id && p.paid_at,
         );
         if (cyclePayments.length > 0) {
           const lastPaidAt = new Date(
-            cyclePayments[cyclePayments.length - 1].paid_at!
+            cyclePayments[cyclePayments.length - 1].paid_at!,
           );
           const dueDate = new Date(cycle.due_date);
           const diffDays = Math.floor(
-            (lastPaidAt.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24)
+            (lastPaidAt.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24),
           );
           if (diffDays >= 0) {
             paymentTimes.push(diffDays);
@@ -313,7 +335,10 @@ export async function computeClientFinancialSummary(
   }
 
   const pendingOrPartial = (cycles || []).filter(
-    (c) => c.status === "pending" || c.status === "partial" || c.status === "overdue"
+    (c) =>
+      c.status === "pending" ||
+      c.status === "partial" ||
+      c.status === "overdue",
   );
 
   if (pendingOrPartial.length > 0) {

@@ -1,17 +1,27 @@
 import { type SupabaseClient } from "@supabase/supabase-js";
 import { Client, CreateClientData, ServiceResult } from "./types";
 
+function buildLocalDate(year: number, month: number, day: number): Date {
+  return new Date(year, month - 1, day, 12, 0, 0, 0);
+}
+
+function formatLocalDate(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(
+    date.getDate(),
+  ).padStart(2, "0")}`;
+}
+
 function getValidDueDate(year: number, month: number, dueDay: number): Date {
-  const candidate = new Date(year, month - 1, dueDay);
+  const candidate = buildLocalDate(year, month, dueDay);
   if (candidate.getMonth() !== month - 1) {
-    return new Date(year, month, 0);
+    return buildLocalDate(year, month + 1, 0);
   }
   return candidate;
 }
 
 function getFirstValidDueDate(dueDay: number): Date {
   const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  today.setHours(12, 0, 0, 0);
 
   const currentMonthDue = getValidDueDate(
     today.getFullYear(),
@@ -23,7 +33,11 @@ function getFirstValidDueDate(dueDay: number): Date {
     return currentMonthDue;
   }
 
-  const nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+  const nextMonth = buildLocalDate(
+    today.getFullYear(),
+    today.getMonth() + 2,
+    1,
+  );
   return getValidDueDate(
     nextMonth.getFullYear(),
     nextMonth.getMonth() + 1,
@@ -133,8 +147,8 @@ export async function createClient({
         client_id: result.id,
         cycle_year: cycleYear,
         cycle_month: cycleMonth,
-        reference_date: referenceDate.toISOString().split("T")[0],
-        due_date: dueDate.toISOString().split("T")[0],
+        reference_date: formatLocalDate(referenceDate),
+        due_date: formatLocalDate(dueDate),
         expected_amount: monthlyPriceNum,
         paid_amount: 0,
         status: "pending" as const,

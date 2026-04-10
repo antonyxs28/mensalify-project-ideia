@@ -105,7 +105,7 @@ function CycleCard({
   }, [cycle.dueDate]);
   const showPaymentActions = cycle.status !== "paid" && remaining > 0;
   const payPartialLabel =
-    cycle.status === "partial" ? "Pagar mais" : "Pagar Parcial";
+    cycle.status === "partial" ? "Pagar Restante" : "Pagar Parcial";
   const payFullLabel =
     cycle.status === "partial" ? "Completar Pagamento" : "Pagar Total";
 
@@ -190,7 +190,7 @@ function CycleCard({
               className="flex-1"
             >
               <Plus className="mr-1 h-4 w-4" />
-              {payPartialLabel} ({formatCurrency(remaining)})
+              {payPartialLabel}
             </Button>
             <Button
               size="sm"
@@ -331,9 +331,7 @@ function PaymentModal({
   useEffect(() => {
     if (cycle && isOpen) {
       const remaining = cycle.expectedAmount - cycle.paidAmount;
-      setAmount(
-        isFullPayment ? cycle.expectedAmount.toString() : remaining.toString(),
-      );
+      setAmount(isFullPayment ? remaining.toString() : "");
     }
   }, [cycle, isOpen, isFullPayment]);
 
@@ -348,6 +346,8 @@ function PaymentModal({
   };
 
   if (!isOpen || !cycle) return null;
+
+  const remaining = cycle.expectedAmount - cycle.paidAmount;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
@@ -367,12 +367,24 @@ function PaymentModal({
               className="mt-1 w-full rounded-md border p-2"
               step="0.01"
               min="0"
+              max={remaining.toString()}
               readOnly={isFullPayment}
+              placeholder={isFullPayment ? "" : "Digite o valor"}
             />
           </div>
           <p className="text-sm text-muted-foreground">
             Total do ciclo: {formatCurrency(cycle.expectedAmount)}
           </p>
+          {cycle.paidAmount > 0 && (
+            <p className="text-sm text-muted-foreground">
+              Já pago: {formatCurrency(cycle.paidAmount)}
+            </p>
+          )}
+          {isFullPayment && (
+            <p className="text-sm text-success font-medium">
+              Valor restante: {formatCurrency(remaining)}
+            </p>
+          )}
           <div className="flex gap-2">
             <Button
               variant="outline"
@@ -384,13 +396,13 @@ function PaymentModal({
             </Button>
             <Button
               onClick={handleSubmit}
-              disabled={isSubmitting || !amount}
+              disabled={isSubmitting || !amount || parseFloat(amount) <= 0}
               className="flex-1"
             >
               {isSubmitting
                 ? "Salvando..."
                 : isFullPayment
-                  ? "Confirmar Pagamento Total"
+                  ? "Confirmar Pagamento"
                   : "Confirmar"}
             </Button>
           </div>

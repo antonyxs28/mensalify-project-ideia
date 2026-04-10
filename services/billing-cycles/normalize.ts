@@ -12,32 +12,46 @@ export function getMonthKey(year: number, month: number): string {
   return `${year}-${String(month).padStart(2, "0")}`;
 }
 
+function buildLocalDate(year: number, month: number, day: number): Date {
+  return new Date(year, month - 1, day, 12, 0, 0, 0);
+}
+
+function parseLocalDate(value: string, fallback: Date): Date {
+  if (!value || value === "null") {
+    return fallback;
+  }
+
+  const [year, month, day] = value.split("-").map(Number);
+  if (!year || !month || !day) {
+    return fallback;
+  }
+  return buildLocalDate(year, month, day);
+}
+
+function getValidDueDate(year: number, month: number, dueDay: number): Date {
+  const candidate = buildLocalDate(year, month, dueDay);
+  if (candidate.getMonth() !== month - 1) {
+    return buildLocalDate(year, month + 1, 0);
+  }
+  return candidate;
+}
+
 export function parseReferenceDate(
   referenceDate: string,
   year: number,
   month: number,
 ): Date {
+  const fallback = buildLocalDate(year, month, 1);
   if (!referenceDate || referenceDate === "null") {
-    return new Date(year, month - 1, 1);
+    return fallback;
   }
-  const date = new Date(referenceDate);
-  if (isNaN(date.getTime())) {
-    return new Date(year, month - 1, 1);
-  }
-  return date;
-}
-
-function getValidDueDate(year: number, month: number, dueDay: number): Date {
-  const candidate = new Date(year, month - 1, dueDay);
-  if (candidate.getMonth() !== month - 1) {
-    return new Date(year, month, 0);
-  }
-  return candidate;
+  const parsed = parseLocalDate(referenceDate, fallback);
+  return isNaN(parsed.getTime()) ? fallback : parsed;
 }
 
 export function calculateFirstDueDate(dueDay: number = 5): Date {
   const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  today.setHours(12, 0, 0, 0);
 
   const currentMonthDay = getValidDueDate(
     today.getFullYear(),
@@ -113,7 +127,10 @@ export function normalizeCycle(
 
   let dueDate: Date;
   if (cycle.due_date && cycle.due_date !== "null") {
-    dueDate = new Date(cycle.due_date as string);
+    dueDate = parseLocalDate(
+      cycle.due_date as string,
+      calculateDueDate(year, month),
+    );
     if (isNaN(dueDate.getTime())) {
       dueDate = calculateDueDate(year, month);
     }
@@ -164,7 +181,7 @@ export function detectCurrentMonth(
   );
 
   const existingCycle = cycles.find(
-    (c) => c.year === currentYear && c.month === currentMonth,
+    (c) => c.year === currentYear && c.month === currentMonth && !c.isVirtual,
   );
 
   if (existingCycle) {
@@ -191,7 +208,7 @@ export function createVirtualCurrentCycle(
   const firstDueDate = calculateFirstDueDate(dueDay);
   const year = firstDueDate.getFullYear();
   const month = firstDueDate.getMonth() + 1;
-  const referenceDate = new Date(year, month - 1, 1);
+  const referenceDate = buildLocalDate(year, month, 1);
 
   console.log("[normalize] createVirtualCurrentCycle - creating for:", {
     year,
@@ -245,9 +262,9 @@ export function normalizeAndSortCycles(
   );
 
   const firstValidDueDate = calculateFirstDueDate(dueDay);
-  const firstValidReferenceDate = new Date(
+  const firstValidReferenceDate = buildLocalDate(
     firstValidDueDate.getFullYear(),
-    firstValidDueDate.getMonth(),
+    firstValidDueDate.getMonth() + 1,
     1,
   );
 
