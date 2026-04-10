@@ -7,6 +7,10 @@ export interface Client {
   email: string | null;
   phone: string | null;
   monthly_price: number;
+  due_day: number;
+  billing_type: string | null;
+  total_installments: number;
+  number_of_cycles: number | null;
   created_at: string;
   updated_at: string | null;
 }
@@ -16,6 +20,10 @@ export interface CreateClientData {
   email?: string;
   phone?: string;
   monthly_price: number | string;
+  due_day?: number;
+  billing_type?: "monthly" | "weekly" | "yearly";
+  total_installments?: number;
+  number_of_cycles?: number | null;
 }
 
 export const createClientSchema = z.object({
@@ -26,6 +34,10 @@ export const createClientSchema = z.object({
     const num = typeof val === "string" ? Number(val) : val;
     return !isNaN(num) && num > 0;
   }, "Price must be a positive number"),
+  due_day: z.number().int().min(1).max(31).optional(),
+  billing_type: z.enum(["monthly", "weekly", "yearly"]).optional(),
+  total_installments: z.number().int().min(1).optional(),
+  number_of_cycles: z.number().int().min(1).nullable().optional(),
 });
 
 export type CreateClientInput = z.infer<typeof createClientSchema>;

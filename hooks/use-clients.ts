@@ -1,7 +1,13 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import type { Client, ClientFormData, DashboardStats, ChartData, PaymentStatus } from "@/lib/types";
+import type {
+  Client,
+  ClientFormData,
+  DashboardStats,
+  ChartData,
+  PaymentStatus,
+} from "@/lib/types";
 import { supabase } from "@/lib/supabase/client";
 import * as clientsService from "@/services/clients.service";
 import { generateLastNMonths } from "@/lib/utils";
@@ -18,7 +24,9 @@ const getMonthKey = (date: Date = new Date()): string => {
 };
 
 async function getClientAuthHeaders(): Promise<HeadersInit> {
-  const { data: { session } } = await supabase.auth.getSession();
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
 
   const headers: HeadersInit = {
     "Content-Type": "application/json",
@@ -76,20 +84,21 @@ export function useClients() {
       }
 
       const paidClientIds = new Set(
-        (payments || [])
-          .filter((p) => p.paid)
-          .map((p) => p.client_id)
+        (payments || []).filter((p) => p.paid).map((p) => p.client_id),
       );
 
       const clientsWithStatus: ClientWithStatus[] = clients.map((client) => ({
         ...client,
-        status: (paidClientIds.has(client.id) ? "pago" : "pendente") as PaymentStatus,
+        status: (paidClientIds.has(client.id)
+          ? "pago"
+          : "pendente") as PaymentStatus,
         monthKey: currentMonthKey,
       }));
 
       setClients(clientsWithStatus);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to load clients";
+      const message =
+        err instanceof Error ? err.message : "Failed to load clients";
       console.error("[useClients] fetchClients error:", message);
       setError(message);
       setClients([]);
@@ -103,36 +112,46 @@ export function useClients() {
   }, [fetchClients]);
 
   const addClient = useCallback(
-    async (data: ClientFormData): Promise<{ success: boolean; error?: string }> => {
+    async (
+      data: ClientFormData,
+    ): Promise<{ success: boolean; error?: string }> => {
       try {
         await clientsService.createClient({
           name: data.name,
           email: data.email,
           phone: data.phone,
           monthly_price: data.monthly_price,
+          due_day: data.due_day,
+          billing_type: data.billing_type,
+          number_of_cycles: data.number_of_cycles,
         });
         return { success: true };
       } catch (err) {
-        const message = err instanceof Error ? err.message : "Failed to create client";
+        const message =
+          err instanceof Error ? err.message : "Failed to create client";
         console.error("[useClients] addClient error:", message);
         return { success: false, error: message };
       }
     },
-    []
+    [],
   );
 
   const updateClient = useCallback(
-    async (id: string, data: Partial<ClientFormData>): Promise<{ success: boolean; error?: string }> => {
+    async (
+      id: string,
+      data: Partial<ClientFormData>,
+    ): Promise<{ success: boolean; error?: string }> => {
       try {
         await clientsService.updateClient(id, data);
         return { success: true };
       } catch (err) {
-        const message = err instanceof Error ? err.message : "Failed to update client";
+        const message =
+          err instanceof Error ? err.message : "Failed to update client";
         console.error("[useClients] updateClient error:", message);
         return { success: false, error: message };
       }
     },
-    []
+    [],
   );
 
   const deleteClient = useCallback(
@@ -142,12 +161,13 @@ export function useClients() {
         await fetchClients();
         return { success: true };
       } catch (err) {
-        const message = err instanceof Error ? err.message : "Failed to delete client";
+        const message =
+          err instanceof Error ? err.message : "Failed to delete client";
         console.error("[useClients] deleteClient error:", message);
         return { success: false, error: message };
       }
     },
-    [fetchClients]
+    [fetchClients],
   );
 
   const markAsPaid = useCallback(
@@ -171,12 +191,13 @@ export function useClients() {
         await fetchClients();
         return { success: true };
       } catch (err) {
-        const message = err instanceof Error ? err.message : "Failed to mark as paid";
+        const message =
+          err instanceof Error ? err.message : "Failed to mark as paid";
         console.error("[useClients] markAsPaid error:", message);
         return { success: false, error: message };
       }
     },
-    [fetchClients]
+    [fetchClients],
   );
 
   const getStats = useCallback((): DashboardStats => {
@@ -184,7 +205,10 @@ export function useClients() {
     const paidClients = clients.filter((c) => c.status === "pago").length;
     const pendingClients = totalClients - paidClients;
 
-    const totalExpected = clients.reduce((sum, c) => sum + (c.monthly_price || 0), 0);
+    const totalExpected = clients.reduce(
+      (sum, c) => sum + (c.monthly_price || 0),
+      0,
+    );
     const totalReceived = clients
       .filter((c) => c.status === "pago")
       .reduce((sum, c) => sum + (c.monthly_price || 0), 0);
@@ -199,24 +223,24 @@ export function useClients() {
   }, [clients]);
 
   const getChartData = useCallback((): ChartData[] => {
-    const allMonths = generateLastNMonths(6)
-    
+    const allMonths = generateLastNMonths(6);
+
     const grouped = clients.reduce<Record<string, ChartData>>((acc, client) => {
-      const month = client.monthKey
+      const month = client.monthKey;
       if (!acc[month]) {
-        acc[month] = { month, monthKey: month, received: 0, expected: 0 }
+        acc[month] = { month, monthKey: month, received: 0, expected: 0 };
       }
-      acc[month].expected += client.monthly_price || 0
+      acc[month].expected += client.monthly_price || 0;
       if (client.status === "pago") {
-        acc[month].received += client.monthly_price || 0
+        acc[month].received += client.monthly_price || 0;
       }
-      return acc
-    }, {})
+      return acc;
+    }, {});
 
     return allMonths.map((month) => {
-      const existing = grouped[month]
-      return existing || { month, monthKey: month, received: 0, expected: 0 }
-    })
+      const existing = grouped[month];
+      return existing || { month, monthKey: month, received: 0, expected: 0 };
+    });
   }, [clients]);
 
   const refetch = useCallback(() => fetchClients(), [fetchClients]);

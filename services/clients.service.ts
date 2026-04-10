@@ -3,11 +3,19 @@ import type { Client } from "@/lib/types";
 import type { CreateClientData } from "@/services/clients/types";
 
 async function getAuthHeaders(): Promise<HeadersInit> {
-  const { data: { session } } = await supabase.auth.getSession();
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
 
   console.log("[SERVICE] Session check - has session:", !!session);
-  console.log("[SERVICE] Session check - has access_token:", !!session?.access_token);
-  console.log("[SERVICE] Session check - has refresh_token:", !!session?.refresh_token);
+  console.log(
+    "[SERVICE] Session check - has access_token:",
+    !!session?.access_token,
+  );
+  console.log(
+    "[SERVICE] Session check - has refresh_token:",
+    !!session?.refresh_token,
+  );
 
   const headers: HeadersInit = {
     "Content-Type": "application/json",
@@ -43,12 +51,19 @@ export async function fetchClients(): Promise<Client[]> {
 
   if (!response.ok) {
     const error = await safeJsonParse(response);
-    console.error("[clients.service] fetchClients failed:", response.status, error);
+    console.error(
+      "[clients.service] fetchClients failed:",
+      response.status,
+      error,
+    );
     throw new Error(error.error || `Server error: ${response.status}`);
   }
 
   const data = await response.json();
-  console.log("[clients.service] fetchClients success, count:", data.data?.length || 0);
+  console.log(
+    "[clients.service] fetchClients success, count:",
+    data.data?.length || 0,
+  );
   return data.data || [];
 }
 
@@ -69,12 +84,20 @@ export async function createClient(data: CreateClientData): Promise<Client> {
       email: data.email,
       phone: data.phone,
       monthly_price: data.monthly_price,
+      due_day: data.due_day,
+      billing_type: data.billing_type,
+      total_installments: data.total_installments,
+      number_of_cycles: data.number_of_cycles,
     }),
   });
 
   if (!response.ok) {
     const error = await safeJsonParse(response);
-    console.error("[clients.service] createClient failed:", response.status, error);
+    console.error(
+      "[clients.service] createClient failed:",
+      response.status,
+      error,
+    );
     throw new Error(error.error || `Server error: ${response.status}`);
   }
 
@@ -98,6 +121,10 @@ export async function updateClient(
       email: data.email,
       phone: data.phone,
       monthly_price: data.monthly_price,
+      due_day: data.due_day,
+      billing_type: data.billing_type,
+      total_installments: data.total_installments,
+      number_of_cycles: data.number_of_cycles,
     }),
   });
 

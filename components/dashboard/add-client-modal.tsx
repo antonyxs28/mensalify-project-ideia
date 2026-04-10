@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Loader2, User, Mail, Phone, DollarSign } from 'lucide-react'
+import { X, Loader2, User, Mail, Phone, DollarSign, Calendar, Repeat } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { useClients } from '@/contexts/clients-context'
@@ -28,6 +28,13 @@ export function AddClientModal({ isOpen, onClose, onSuccess, editingClient }: Ad
   const [monthlyPrice, setMonthlyPrice] = useState(
     editingClient?.monthly_price?.toString() || ''
   )
+  const [dueDay, setDueDay] = useState(
+    (editingClient as any)?.due_day?.toString() || '5'
+  )
+  const [billingType, setBillingType] = useState<'monthly' | 'weekly' | 'yearly'>(
+    (editingClient as any)?.billing_type || 'monthly'
+  )
+  const [numberOfCycles, setNumberOfCycles] = useState<string>('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errors, setErrors] = useState<{
     name?: string
@@ -44,11 +51,17 @@ export function AddClientModal({ isOpen, onClose, onSuccess, editingClient }: Ad
       setEmail(editingClient.email || '')
       setPhone(editingClient.phone || '')
       setMonthlyPrice(editingClient.monthly_price?.toString() || '')
+      setDueDay((editingClient as any)?.due_day?.toString() || '5')
+      setBillingType((editingClient as any).billing_type || 'monthly')
+      setNumberOfCycles((editingClient as any).number_of_cycles?.toString() || '')
     } else {
       setName('')
       setEmail('')
       setPhone('')
       setMonthlyPrice('')
+      setDueDay('5')
+      setBillingType('monthly')
+      setNumberOfCycles('')
     }
     setErrors({})
   }, [editingClient, isOpen])
@@ -58,6 +71,9 @@ export function AddClientModal({ isOpen, onClose, onSuccess, editingClient }: Ad
     setEmail('')
     setPhone('')
     setMonthlyPrice('')
+    setDueDay('5')
+    setBillingType('monthly')
+    setNumberOfCycles('')
     setErrors({})
   }
 
@@ -104,7 +120,10 @@ export function AddClientModal({ isOpen, onClose, onSuccess, editingClient }: Ad
         name: sanitizeInput(name),
         email: sanitizeInput(email) || undefined,
         phone: sanitizeInput(phone) || undefined,
-        monthly_price: parseFloat(monthlyPrice.replace(',', '.'))
+        monthly_price: parseFloat(monthlyPrice.replace(',', '.')),
+        due_day: dueDay ? parseInt(dueDay, 10) : 5,
+        billing_type: billingType,
+        number_of_cycles: numberOfCycles ? parseInt(numberOfCycles, 10) : null,
       }
 
       let result
@@ -236,6 +255,56 @@ export function AddClientModal({ isOpen, onClose, onSuccess, editingClient }: Ad
                       />
                     </div>
                     {errors.monthlyPrice && <FieldError>{errors.monthlyPrice}</FieldError>}
+                  </Field>
+
+                  <Field>
+                    <FieldLabel htmlFor="due-day">Day of Due Date</FieldLabel>
+                    <div className="relative">
+                      <Calendar className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        id="due-day"
+                        type="number"
+                        min="1"
+                        max="31"
+                        value={dueDay}
+                        onChange={(e) => setDueDay(e.target.value)}
+                        className="pl-10"
+                        disabled={isSubmitting}
+                        placeholder="5"
+                      />
+                    </div>
+                  </Field>
+
+                  <Field>
+                    <FieldLabel htmlFor="billing-type">Billing Type</FieldLabel>
+                    <select
+                      id="billing-type"
+                      value={billingType}
+                      onChange={(e) => setBillingType(e.target.value as 'monthly' | 'weekly' | 'yearly')}
+                      disabled={isSubmitting}
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <option value="monthly">Monthly</option>
+                      <option value="weekly">Weekly</option>
+                      <option value="yearly">Yearly</option>
+                    </select>
+                  </Field>
+
+                  <Field>
+                    <FieldLabel htmlFor="number-of-cycles">Number of Cycles (optional)</FieldLabel>
+                    <div className="relative">
+                      <Repeat className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        id="number-of-cycles"
+                        type="number"
+                        placeholder="Infinite"
+                        value={numberOfCycles}
+                        onChange={(e) => setNumberOfCycles(e.target.value)}
+                        className="pl-10"
+                        disabled={isSubmitting}
+                        min="1"
+                      />
+                    </div>
                   </Field>
                 </FieldGroup>
 

@@ -112,20 +112,28 @@ export function useClientCycles(clientId: string) {
       setError(null);
 
       const headers = await getClientAuthHeaders();
+      console.log("[useClientCycles] Fetching cycles for clientId:", clientId);
+      
       const response = await fetch(`/api/clients/${clientId}/cycles`, {
         headers,
         credentials: "include",
       });
 
+      console.log("[useClientCycles] Response status:", response.status);
+
       if (!response.ok) {
         const text = await response.text();
+        console.error("[useClientCycles] Error response:", text);
         throw new Error(text || "Failed to fetch cycles");
       }
 
       const result = await response.json();
+      console.log("[useClientCycles] Raw result:", result);
+      console.log("[useClientCycles] Cycles data:", result.data);
       setCycles(result.data || []);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to load cycles";
+      console.error("[useClientCycles] Catch error:", message);
       setError(message);
       setCycles([]);
     } finally {
