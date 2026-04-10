@@ -2,8 +2,8 @@
 
 import { createContext, useContext, useEffect, useState, useCallback, useRef, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
-import type { AuthState } from '@/lib/types'
+import { authService } from '@/services/auth.service'
+import type { AuthState, User } from '@/lib/types'
 
 interface AuthContextType extends AuthState {
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>
@@ -26,26 +26,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
   const initialized = useRef(false)
 
-  const fetchProfile = useCallback(async (userId: string, email: string) => {
-    try {
-      const { data: profile, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single()
-
-      if (error && error.code !== 'PGRST116') {
-        console.error('Error fetching profile:', error)
-        return { name: email.split('@')[0] }
-      }
-
-      return { name: profile?.name || email.split('@')[0] }
-    } catch (error) {
-      console.error('Error fetching profile:', error)
-      return { name: email.split('@')[0] }
-    }
-  }, [])
-
   const stopLoading = useCallback(() => {
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current)
@@ -54,14 +34,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setState(prev => ({ ...prev, isLoading: false }))
   }, [])
 
-  const setAuthenticated = useCallback((user: { id: string; email?: string }, name: string) => {
+  const setAuthenticated = useCallback((user: User) => {
     stopLoading()
     setState({
-      user: {
-        id: user.id,
-        email: user.email || '',
-        name
-      },
+      user,
       isAuthenticated: true,
       isLoading: false
     })
@@ -87,12 +63,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }, AUTH_TIMEOUT_MS)
 
       try {
-        const { data: { session } } = await supabase.auth.getSession()
+        const user = await authService.getSession()
         
-        if (session?.user) {
-          const user = session.user
-          const profileData = await fetchProfile(user.id, user.email || '')
-          setAuthenticated(user, profileData.name)
+        if (user) {
+          setAuthenticated(user)
         } else {
           setUnauthenticated()
         }
@@ -104,11 +78,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     initAuth()
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (session?.user) {
-        const user = session.user
-        const profileData = await fetchProfile(user.id, user.email || '')
-        setAuthenticated(user, profileData.name)
+    const unsubscribe = authService.subscribeToAuthChanges((user) => {
+      if (user) {
+        setAuthenticated(user)
       } else {
         setUnauthenticated()
       }
@@ -118,89 +90,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current)
       }
-      subscription.unsubscribe()
+      unsubscribe()
     }
-  }, [fetchProfile, setAuthenticated, setUnauthenticated])
+  }, [setAuthenticated, setUnauthenticated])
 
   const login = useCallback(async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
-    try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: email.toLowerCase().trim(),
-        password
-      })
-
-      if (error) {
-        return { success: false, error: error.message }
-      }
-
-      if (data.user) {
-        const profileData = await fetchProfile(data.user.id, data.user.email || '')
-        
-        setState({
-          user: {
-            id: data.user.id,
-            email: data.user.email || '',
-            name: profileData.name
-          },
-          isAuthenticated: true,
-          isLoading: false
-        })
-      }
-
-      return { success: true }
-    } catch (error) {
-      console.error('Login error:', error)
-      return { success: false, error: 'Ocorreu um erro inesperado. Tente novamente.' }
+    const result = await authService.login(email, password)
+    
+    if (result.success && result.user) {
+      setAuthenticated(result.user)
     }
-  }, [fetchProfile])
+    
+    return result
+  }, [setAuthenticated])
 
   const register = useCallback(async (name: string, email: string, password: string): Promise<{ success: boolean; error?: string }> => {
-    try {
-      const { data, error } = await supabase.auth.signUp({
-        email: email.toLowerCase().trim(),
-        password,
-        options: {
-          data: {
-            name: name.trim()
-          }
-        }
-      })
-
-      if (error) {
-        return { success: false, error: error.message }
-      }
-
-      if (data.user) {
-        setState({
-          user: {
-            id: data.user.id,
-            email: data.user.email || '',
-            name: name.trim()
-          },
-          isAuthenticated: true,
-          isLoading: false
-        })
-      }
-
-      return { success: true }
-    } catch (error) {
-      console.error('Registration error:', error)
-      return { success: false, error: 'Ocorreu um erro inesperado. Tente novamente.' }
+    const result = await authService.register(name, email, password)
+    
+    if (result.success && result.user) {
+      setAuthenticated(result.user)
     }
-  }, [])
+    
+    return result
+  }, [setAuthenticated])
 
   const logout = useCallback(async () => {
-    try {
-      await supabase.auth.signOut()
-      setState({
-        user: null,
-        isAuthenticated: false,
-        isLoading: false
-      })
-      router.push('/login')
-    } catch (error) {
-      console.error('Logout error:', error)
-    }
+    await authService.logout()
+    setState({
+      user: null,
+      isAuthenticated: false,
+      isLoading: false
+    })
+    router.replace('/login')
   }, [router])
 
   const updateProfile = useCallback(async (name: string): Promise<{ success: boolean; error?: string }> => {
@@ -208,26 +129,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { success: false, error: 'Usuário não autenticado' }
     }
 
-    try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({ name: name.trim() })
-        .eq('id', state.user.id)
-
-      if (error) {
-        return { success: false, error: error.message }
-      }
-
+    const result = await authService.updateProfile(state.user.id, name)
+    
+    if (result.success) {
       setState(prev => ({
         ...prev,
         user: prev.user ? { ...prev.user, name: name.trim() } : null
       }))
-
-      return { success: true }
-    } catch (error) {
-      console.error('Profile update error:', error)
-      return { success: false, error: 'Ocorreu um erro inesperado. Tente novamente.' }
     }
+    
+    return result
   }, [state.user])
 
   return (

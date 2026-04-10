@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useCallback, type ReactNode } from 'react'
+import { createContext, useContext, type ReactNode } from 'react'
 import type { ClientWithStatus, ClientFormData, DashboardStats, ChartData } from '@/lib/types'
 import { useClients as useClientsHook } from '@/hooks/use-clients'
 
@@ -17,42 +17,52 @@ interface ClientsContextType {
   refetch: () => void
 }
 
+const defaultStats: DashboardStats = {
+  totalReceived: 0,
+  totalPending: 0,
+  totalClients: 0,
+  paidClients: 0,
+  pendingClients: 0
+}
+
+const defaultChartData: ChartData[] = []
+
 const ClientsContext = createContext<ClientsContextType | null>(null)
 
 export function ClientsProvider({ children }: { children: ReactNode }) {
-  const {
-    clients,
-    isLoading,
-    error,
-    addClient,
-    updateClient,
-    deleteClient,
-    markAsPaid,
-    getStats: getHookStats,
-    getChartData: getHookChartData,
-    refetch
-  } = useClientsHook()
+  const hookResult = useClientsHook()
+  
+  const clients = hookResult.clients
+  const isLoading = hookResult.isLoading
+  const error = hookResult.error
+  const createClient = (hookResult as { createClient?: typeof hookResult.addClient }).createClient ?? hookResult.addClient
+  const updateClient = hookResult.updateClient
+  const deleteClient = hookResult.deleteClient
+  const markAsPaid = hookResult.markAsPaid
+  const getStats = hookResult.getStats
+  const getChartData = hookResult.getChartData
+  const refetch = hookResult.refetch
 
-  const getStats = useCallback((): DashboardStats => {
-    return getHookStats()
-  }, [getHookStats])
+  const getStatsValue = (): DashboardStats => {
+    return getStats ?? defaultStats
+  }
 
-  const getChartData = useCallback((): ChartData[] => {
-    return getHookChartData()
-  }, [getHookChartData])
+  const getChartDataValue = (): ChartData[] => {
+    return getChartData ?? defaultChartData
+  }
 
   return (
     <ClientsContext.Provider value={{ 
       clients, 
       isLoading, 
       error,
-      addClient, 
-      updateClient, 
-      markAsPaid, 
-      deleteClient,
-      getStats,
-      getChartData,
-      refetch
+      addClient: createClient ?? (async () => ({ success: false, error: 'Not available' })), 
+      updateClient: updateClient ?? (async () => ({ success: false, error: 'Not available' })), 
+      markAsPaid: markAsPaid ?? (async () => ({ success: false, error: 'Not available' })), 
+      deleteClient: deleteClient ?? (async () => ({ success: false, error: 'Not available' })),
+      getStats: getStatsValue,
+      getChartData: getChartDataValue,
+      refetch: refetch ?? (() => {})
     }}>
       {children}
     </ClientsContext.Provider>
