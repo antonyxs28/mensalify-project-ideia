@@ -17,53 +17,13 @@ interface ClientsContextType {
   refetch: () => void
 }
 
-const defaultStats: DashboardStats = {
-  totalReceived: 0,
-  totalPending: 0,
-  totalClients: 0,
-  paidClients: 0,
-  pendingClients: 0
-}
-
-const defaultChartData: ChartData[] = []
-
 const ClientsContext = createContext<ClientsContextType | null>(null)
 
 export function ClientsProvider({ children }: { children: ReactNode }) {
   const hookResult = useClientsHook()
   
-  const clients = hookResult.clients
-  const isLoading = hookResult.isLoading
-  const error = hookResult.error
-  const createClient = (hookResult as { createClient?: typeof hookResult.addClient }).createClient ?? hookResult.addClient
-  const updateClient = hookResult.updateClient
-  const deleteClient = hookResult.deleteClient
-  const markAsPaid = hookResult.markAsPaid
-  const getStats = hookResult.getStats
-  const getChartData = hookResult.getChartData
-  const refetch = hookResult.refetch
-
-  const getStatsValue = (): DashboardStats => {
-    return getStats ?? defaultStats
-  }
-
-  const getChartDataValue = (): ChartData[] => {
-    return getChartData ?? defaultChartData
-  }
-
   return (
-    <ClientsContext.Provider value={{ 
-      clients, 
-      isLoading, 
-      error,
-      addClient: createClient ?? (async () => ({ success: false, error: 'Not available' })), 
-      updateClient: updateClient ?? (async () => ({ success: false, error: 'Not available' })), 
-      markAsPaid: markAsPaid ?? (async () => ({ success: false, error: 'Not available' })), 
-      deleteClient: deleteClient ?? (async () => ({ success: false, error: 'Not available' })),
-      getStats: getStatsValue,
-      getChartData: getChartDataValue,
-      refetch: refetch ?? (() => {})
-    }}>
+    <ClientsContext.Provider value={hookResult}>
       {children}
     </ClientsContext.Provider>
   )
