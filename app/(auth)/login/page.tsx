@@ -8,6 +8,7 @@ import { Eye, EyeOff, Mail, Lock, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { useAuth } from '@/contexts/auth-context'
+import { authService } from '@/services/auth.service'
 import { isValidEmail, sanitizeInput } from '@/lib/validation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -16,7 +17,7 @@ import { FieldGroup, Field, FieldLabel, FieldError } from '@/components/ui/field
 
 export default function LoginPage() {
   const router = useRouter()
-  const { login, isAuthenticated, isLoading: authLoading } = useAuth()
+  const { isAuthenticated, isLoading: authLoading } = useAuth()
   
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -57,10 +58,11 @@ export default function LoginPage() {
     setErrors({})
     
     try {
-      const result = await login(sanitizeInput(email) || '', password)
+      const result = await authService.login(sanitizeInput(email) || '', password)
       
       if (result.success) {
         toast.success('Login realizado com sucesso!')
+        await new Promise(resolve => setTimeout(resolve, 100))
         router.push('/dashboard')
       } else {
         const errorMessage = result.error?.includes('Invalid login credentials')
