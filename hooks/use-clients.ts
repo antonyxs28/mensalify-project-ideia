@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import type { Client, ClientFormData, DashboardStats, ChartData, PaymentStatus } from "@/lib/types";
 import * as clientsService from "@/services/clients.service";
+import { generateLastNMonths } from "@/lib/utils";
 
 interface ClientWithStatus extends Client {
   status: PaymentStatus;
@@ -128,12 +129,24 @@ export function useClients() {
   }, [clients]);
 
   const getChartData = useCallback((): ChartData[] => {
-    return clients.map((client) => ({
-      month: getMonthKey(),
-      monthKey: client.monthKey,
-      received: client.status === "pago" ? client.monthly_price : 0,
-      expected: client.monthly_price,
-    }));
+    const allMonths = generateLastNMonths(6)
+    
+    const grouped = clients.reduce<Record<string, ChartData>>((acc, client) => {
+      const month = client.monthKey
+      if (!acc[month]) {
+        acc[month] = { month, monthKey: month, received: 0, expected: 0 }
+      }
+      acc[month].expected += client.monthly_price || 0
+      if (client.status === "pago") {
+        acc[month].received += client.monthly_price || 0
+      }
+      return acc
+    }, {})
+
+    return allMonths.map((month) => {
+      const existing = grouped[month]
+      return existing || { month, monthKey: month, received: 0, expected: 0 }
+    })
   }, [clients]);
 
   const refetch = useCallback(() => fetchClients(), [fetchClients]);

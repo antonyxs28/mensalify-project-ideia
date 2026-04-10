@@ -16,6 +16,7 @@ import {
 
 import { useClients } from "@/contexts/clients-context";
 import { formatCurrency } from "@/lib/validation";
+import { formatMonthLabel } from "@/lib/utils";
 import {
   Card,
   CardContent,
@@ -100,6 +101,7 @@ export function PaymentsChart() {
                   tickLine={false}
                   axisLine={false}
                   dy={10}
+                  tickFormatter={(value) => formatMonthLabel(value)}
                 />
                 <YAxis
                   stroke="oklch(0.6 0 0)"
