@@ -20,10 +20,10 @@ interface PaymentRecord {
 function computeStatus(
   paidAmount: number,
   expectedAmount: number,
-  dueDate: string
+  dueDate?: string
 ): BillingCycle["status"] {
   const today = new Date().toISOString().split("T")[0];
-  const isOverdue = today > dueDate;
+  const isOverdue = dueDate ? today > dueDate : false;
 
   if (paidAmount >= expectedAmount) {
     return "paid";

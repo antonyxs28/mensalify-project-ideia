@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { ArrowLeft, Mail, Phone, Calendar, Loader2 } from 'lucide-react'
 import { useRouter, useParams } from 'next/navigation'
-import { useClients } from '@/contexts/clients-context'
 import { formatCurrency } from '@/lib/validation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -12,23 +11,88 @@ import { Badge } from '@/components/ui/badge'
 import { ClientCyclesTimeline } from '@/components/dashboard/client-cycles-timeline'
 import { PaymentModal } from '@/components/dashboard/payment-modal'
 import type { ClientWithStatus } from '@/lib/types'
+import { supabase } from '@/lib/supabase/client'
+
+async function getClientAuthHeaders(): Promise<HeadersInit> {
+  const { data: { session } } = await supabase.auth.getSession()
+  const headers: HeadersInit = { 'Content-Type': 'application/json' }
+  if (session?.access_token) {
+    headers['Authorization'] = `Bearer ${session.access_token}`
+    headers['x-refresh-token'] = session.refresh_token || ''
+  }
+  return headers
+}
 
 export default function ClientDetailPage() {
   const router = useRouter()
   const params = useParams()
   const clientId = params.id as string
   
-  const { clients, isLoading: clientsLoading } = useClients()
   const [client, setClient] = useState<ClientWithStatus | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [selectedCycleId, setSelectedCycleId] = useState<string | null>(null)
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false)
 
   useEffect(() => {
-    if (clientId && clients.length > 0) {
-      const found = clients.find(c => c.id === clientId)
-      setClient(found || null)
+    async function fetchClient() {
+      if (!clientId) return
+      
+      console.log('[ClientDetail] Fetching client, clientId:', clientId)
+      
+      try {
+        setIsLoading(true)
+        setError(null)
+        
+        const headers = await getClientAuthHeaders()
+        const response = await fetch(`/api/clients/${clientId}`, {
+          headers,
+          credentials: 'include',
+        })
+        
+        console.log('[ClientDetail] Client API response status:', response.status)
+        
+        if (!response.ok) {
+          throw new Error('Client not found')
+        }
+        
+        const result = await response.json()
+        console.log('[ClientDetail] Client API result:', result)
+        
+        const clientData = result.data
+        
+        if (clientData) {
+          const currentMonth = new Date()
+          const monthKey = `${currentMonth.getFullYear()}-${String(currentMonth.getMonth() + 1).padStart(2, '0')}`
+          const monthDb = `${monthKey}-01`
+          
+          const { data: payment } = await supabase
+            .from('payments')
+            .select('paid')
+            .eq('client_id', clientId)
+            .eq('month', monthDb)
+            .maybeSingle()
+          
+          console.log('[ClientDetail] Payment for current month:', payment)
+          
+          setClient({
+            ...clientData,
+            status: payment?.paid ? 'pago' : 'pendente',
+            monthKey,
+          } as ClientWithStatus)
+          console.log('[ClientDetail] Client state set successfully')
+        }
+      } catch (err) {
+        console.error('[ClientDetail] Error fetching client:', err)
+        setError(err instanceof Error ? err.message : 'Failed to load client')
+      } finally {
+        setIsLoading(false)
+        console.log('[ClientDetail] Loading finished')
+      }
     }
-  }, [clientId, clients])
+    
+    fetchClient()
+  }, [clientId])
 
   const handlePayClick = (cycleId: string) => {
     setSelectedCycleId(cycleId)
@@ -40,7 +104,7 @@ export default function ClientDetailPage() {
     setSelectedCycleId(null)
   }
 
-  if (clientsLoading) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -48,7 +112,7 @@ export default function ClientDetailPage() {
     )
   }
 
-  if (!client) {
+  if (error || !client) {
     return (
       <div className="space-y-6">
         <Button variant="ghost" onClick={() => router.back()}>
@@ -166,6 +230,7 @@ export default function ClientDetailPage() {
           clientId={client.id}
           clientName={client.name}
           monthlyPrice={client.monthly_price}
+          dueDay={client.due_day || 5}
         />
       </motion.div>
     </div>

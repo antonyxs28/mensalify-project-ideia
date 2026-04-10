@@ -2,9 +2,9 @@ import { SupabaseClient } from "@supabase/supabase-js";
 import { getCycle, updateCycle } from "./cycles.service";
 import type { ServiceResult, PaymentInput } from "./types";
 
-function computeStatus(paidAmount: number, expectedAmount: number, dueDate: string): "pending" | "paid" | "overdue" | "partial" {
+function computeStatus(paidAmount: number, expectedAmount: number, dueDate?: string): "pending" | "paid" | "overdue" | "partial" {
   const today = new Date().toISOString().split("T")[0];
-  const isOverdue = today > dueDate;
+  const isOverdue = dueDate ? today > dueDate : false;
 
   if (paidAmount >= expectedAmount) {
     return "paid";
@@ -52,11 +52,32 @@ export async function payCycle(
     return { success: false, error: paymentError.message };
   }
 
+  const { error: updateError } = await supabase
+    .from("billing_cycles")
+    .update({
+      paid_amount: newPaidAmount,
+      status: newStatus,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", cycleId);
+
+  if (updateError) {
+    console.warn("[payCycle] Failed to update cycle status:", updateError.message);
+  }
+
   const { data: updatedCycle } = await supabase
     .from("billing_cycles")
     .select("*")
     .eq("id", cycleId)
     .single();
+
+  console.log("[payCycle] DEBUG - Updated cycle:", {
+    id: cycleId,
+    paid_amount: newPaidAmount,
+    expected_amount: cycle.expected_amount,
+    status: newStatus,
+    due_date: cycle.due_date,
+  });
 
   if (!updatedCycle) {
     return { success: false, error: "Failed to fetch updated cycle" };

@@ -20,6 +20,10 @@ export interface Client {
   email: string | null
   phone: string | null
   monthly_price: number
+  due_day: number
+  billing_type: string | null
+  total_installments: number
+  number_of_cycles: number | null
   created_at: string
   updated_at: string | null
 }
@@ -63,6 +67,9 @@ export interface ClientFormData {
   monthly_price: number
   email?: string
   phone?: string
+  due_day?: number
+  billing_type?: 'monthly' | 'weekly' | 'yearly'
+  number_of_cycles?: number | null
 }
 
 export interface DashboardStats {
