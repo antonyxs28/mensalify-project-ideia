@@ -15,10 +15,11 @@ import { FieldGroup, Field, FieldLabel, FieldError } from '@/components/ui/field
 interface AddClientModalProps {
   isOpen: boolean
   onClose: () => void
+  onSuccess?: () => void
   editingClient?: ClientWithStatus | null
 }
 
-export function AddClientModal({ isOpen, onClose, editingClient }: AddClientModalProps) {
+export function AddClientModal({ isOpen, onClose, onSuccess, editingClient }: AddClientModalProps) {
   const { addClient, updateClient } = useClients()
   
   const [name, setName] = useState(editingClient?.name || '')
@@ -115,6 +116,7 @@ export function AddClientModal({ isOpen, onClose, editingClient }: AddClientModa
       
       if (result.success) {
         toast.success(isEditing ? 'Client updated successfully!' : 'Client added successfully!')
+        onSuccess?.()
         handleClose()
       } else {
         toast.error(result.error || 'An error occurred')

@@ -12,7 +12,7 @@ import { ClientsTable } from '@/components/dashboard/clients-table'
 import { AddClientModal } from '@/components/dashboard/add-client-modal'
 
 export default function ClientsPage() {
-  const { clients } = useClients()
+  const { clients, refetch } = useClients()
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingClient, setEditingClient] = useState<ClientWithStatus | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
@@ -103,6 +103,7 @@ export default function ClientsPage() {
       <AddClientModal
         isOpen={isModalOpen}
         onClose={handleCloseModal}
+        onSuccess={refetch}
         editingClient={editingClient}
       />
     </div>

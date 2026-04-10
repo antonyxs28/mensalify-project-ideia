@@ -1,44 +1,26 @@
 import { supabase } from "@/lib/supabase/client";
-
-export interface Client {
-  id: string;
-  user_id: string;
-  name: string;
-  email: string | null;
-  phone: string | null;
-  monthly_price: number;
-  created_at: string;
-  updated_at: string | null;
-}
-
-export interface CreateClientData {
-  name: string;
-  email?: string;
-  phone?: string;
-  monthly_price: number;
-}
+import type { Client } from "@/lib/types";
+import type { CreateClientData } from "@/services/clients/types";
 
 async function getAuthHeaders(): Promise<HeadersInit> {
-  const { data: { session } } = await supabase.auth.getSession()
-  
-  console.log('[SERVICE] Session check - has session:', !!session)
-  console.log('[SERVICE] Session check - has access_token:', !!session?.access_token)
-  console.log('[SERVICE] Session check - has refresh_token:', !!session?.refresh_token)
-  
+  const { data: { session } } = await supabase.auth.getSession();
+
+  console.log("[SERVICE] Session check - has session:", !!session);
+  console.log("[SERVICE] Session check - has access_token:", !!session?.access_token);
+  console.log("[SERVICE] Session check - has refresh_token:", !!session?.refresh_token);
+
   const headers: HeadersInit = {
     "Content-Type": "application/json",
-  }
-  
-  // Fallback: enviar token no header se sessão existir no browser
-  // mas cookies não chegarem ao server
+  };
+
   if (session?.access_token) {
-    headers['Authorization'] = `Bearer ${session.access_token}`
-    headers['x-refresh-token'] = session.refresh_token || ''
-    console.log('[SERVICE] Adding Authorization header with token')
-    console.log('[SERVICE] Adding refresh token header')
+    headers["Authorization"] = `Bearer ${session.access_token}`;
+    headers["x-refresh-token"] = session.refresh_token || "";
+    console.log("[SERVICE] Adding Authorization header with token");
+    console.log("[SERVICE] Adding refresh token header");
   }
-  
-  return headers
+
+  return headers;
 }
 
 async function safeJsonParse(response: Response): Promise<{ error?: string }> {
@@ -54,9 +36,9 @@ async function safeJsonParse(response: Response): Promise<{ error?: string }> {
 export async function fetchClients(): Promise<Client[]> {
   const headers = await getAuthHeaders();
 
-  const response = await fetch("/api/clients", { 
+  const response = await fetch("/api/clients", {
     headers,
-    credentials: 'include'  // Importante para enviar cookies!
+    credentials: "include",
   });
 
   if (!response.ok) {
@@ -81,12 +63,12 @@ export async function createClient(data: CreateClientData): Promise<Client> {
   const response = await fetch("/api/clients", {
     method: "POST",
     headers,
-    credentials: 'include',  // Importante para enviar cookies!
+    credentials: "include",
     body: JSON.stringify({
       name: data.name,
       email: data.email,
       phone: data.phone,
-      monthlyPrice: data.monthly_price,
+      monthly_price: data.monthly_price,
     }),
   });
 
@@ -103,28 +85,29 @@ export async function createClient(data: CreateClientData): Promise<Client> {
 
 export async function updateClient(
   id: string,
-  data: Partial<CreateClientData>
+  data: Partial<CreateClientData>,
 ): Promise<Client> {
   const headers = await getAuthHeaders();
 
   const response = await fetch(`/api/clients/${id}`, {
     method: "PUT",
     headers,
-    credentials: 'include',
+    credentials: "include",
     body: JSON.stringify({
       name: data.name,
       email: data.email,
       phone: data.phone,
-      monthlyPrice: data.monthly_price,
+      monthly_price: data.monthly_price,
     }),
   });
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || "Failed to update client");
+    const error = await safeJsonParse(response);
+    throw new Error(error.error || `Server error: ${response.status}`);
   }
 
-  return response.json().then((r) => r.data);
+  const result = await response.json();
+  return result.data;
 }
 
 export async function deleteClient(id: string): Promise<void> {
@@ -133,11 +116,11 @@ export async function deleteClient(id: string): Promise<void> {
   const response = await fetch(`/api/clients/${id}`, {
     method: "DELETE",
     headers,
-    credentials: 'include',
+    credentials: "include",
   });
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || "Failed to delete client");
+    const error = await safeJsonParse(response);
+    throw new Error(error.error || `Server error: ${response.status}`);
   }
 }

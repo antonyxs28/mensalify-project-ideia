@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import type { Client, ClientFormData, DashboardStats, ChartData, PaymentStatus } from "@/lib/types";
+import { supabase } from "@/lib/supabase/client";
 import * as clientsService from "@/services/clients.service";
 import { generateLastNMonths } from "@/lib/utils";
 
@@ -16,6 +17,31 @@ const getMonthKey = (date: Date = new Date()): string => {
   return `${year}-${month}`;
 };
 
+async function getClientAuthHeaders(): Promise<HeadersInit> {
+  const { data: { session } } = await supabase.auth.getSession();
+
+  const headers: HeadersInit = {
+    "Content-Type": "application/json",
+  };
+
+  if (session?.access_token) {
+    headers["Authorization"] = `Bearer ${session.access_token}`;
+    headers["x-refresh-token"] = session.refresh_token || "";
+  }
+
+  return headers;
+}
+
+async function safeJsonParse(response: Response): Promise<{ error?: string }> {
+  try {
+    const text = await response.text();
+    if (!text) return {};
+    return JSON.parse(text);
+  } catch {
+    return { error: `Non-JSON response: ${response.status}` };
+  }
+}
+
 export function useClients() {
   const [clients, setClients] = useState<ClientWithStatus[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -26,13 +52,39 @@ export function useClients() {
       setIsLoading(true);
       setError(null);
 
-      const data = await clientsService.fetchClients();
-      
-      const currentMonth = getMonthKey();
-      const clientsWithStatus: ClientWithStatus[] = data.map((client) => ({
+      const clients = await clientsService.fetchClients();
+
+      if (clients.length === 0) {
+        setClients([]);
+        setIsLoading(false);
+        return;
+      }
+
+      const clientIds = clients.map((c) => c.id);
+      const currentMonthKey = getMonthKey();
+
+      const currentMonthDb = `${currentMonthKey}-01`;
+
+      const { data: payments, error: paymentsError } = await supabase
+        .from("payments")
+        .select("*")
+        .in("client_id", clientIds)
+        .eq("month", currentMonthDb);
+
+      if (paymentsError) {
+        console.error("[useClients] fetchPayments error:", paymentsError);
+      }
+
+      const paidClientIds = new Set(
+        (payments || [])
+          .filter((p) => p.paid)
+          .map((p) => p.client_id)
+      );
+
+      const clientsWithStatus: ClientWithStatus[] = clients.map((client) => ({
         ...client,
-        status: "pendente" as PaymentStatus,
-        monthKey: currentMonth,
+        status: (paidClientIds.has(client.id) ? "pago" : "pendente") as PaymentStatus,
+        monthKey: currentMonthKey,
       }));
 
       setClients(clientsWithStatus);
@@ -59,8 +111,6 @@ export function useClients() {
           phone: data.phone,
           monthly_price: data.monthly_price,
         });
-        
-        await fetchClients();
         return { success: true };
       } catch (err) {
         const message = err instanceof Error ? err.message : "Failed to create client";
@@ -68,14 +118,13 @@ export function useClients() {
         return { success: false, error: message };
       }
     },
-    [fetchClients]
+    []
   );
 
   const updateClient = useCallback(
     async (id: string, data: Partial<ClientFormData>): Promise<{ success: boolean; error?: string }> => {
       try {
         await clientsService.updateClient(id, data);
-        await fetchClients();
         return { success: true };
       } catch (err) {
         const message = err instanceof Error ? err.message : "Failed to update client";
@@ -83,7 +132,7 @@ export function useClients() {
         return { success: false, error: message };
       }
     },
-    [fetchClients]
+    []
   );
 
   const deleteClient = useCallback(
@@ -103,10 +152,31 @@ export function useClients() {
 
   const markAsPaid = useCallback(
     async (id: string): Promise<{ success: boolean; error?: string }> => {
-      console.log("[useClients] markAsPaid not implemented - needs payments service");
-      return { success: false, error: "Not implemented" };
+      try {
+        const headers = await getClientAuthHeaders();
+        const response = await fetch("/api/payments", {
+          method: "POST",
+          headers,
+          credentials: "include",
+          body: JSON.stringify({ client_id: id }),
+        });
+
+        if (!response.ok) {
+          const error = await safeJsonParse(response);
+          throw new Error(error.error || "Failed to mark as paid");
+        }
+
+        const result = await response.json();
+        console.log("[useClients] markAsPaid success:", result.data?.id);
+        await fetchClients();
+        return { success: true };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Failed to mark as paid";
+        console.error("[useClients] markAsPaid error:", message);
+        return { success: false, error: message };
+      }
     },
-    []
+    [fetchClients]
   );
 
   const getStats = useCallback((): DashboardStats => {
