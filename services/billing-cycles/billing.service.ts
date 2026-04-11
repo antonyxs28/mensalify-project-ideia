@@ -4,7 +4,7 @@ import type { BillingCycle, ServiceResult } from "./types";
 interface Client {
   id: string;
   monthly_price: number;
-  billing_start_date: string | null;
+  created_at: string;
   is_active: boolean;
   user_id: string;
 }
@@ -71,19 +71,21 @@ export async function generateBillingCycles(
 ): Promise<ServiceResult<{ generated: number; existing: number }>> {
   const upToDate = options.upToMonth || new Date();
 
-  if (!client.is_active || !client.billing_start_date) {
+  if (!client.is_active || !client.created_at) {
     return { success: true, data: { generated: 0, existing: 0 } };
   }
 
-  const startDate = new Date(client.billing_start_date);
+  const startDate = new Date(client.created_at);
   const endDate = new Date(upToDate);
 
   if (startDate > endDate) {
     return { success: true, data: { generated: 0, existing: 0 } };
   }
 
-  const startYear = startDate.getFullYear();
-  const startMonth = startDate.getMonth() + 1;
+  const firstCycleDate = new Date(startDate);
+  firstCycleDate.setMonth(firstCycleDate.getMonth() + 1);
+  const startYear = firstCycleDate.getFullYear();
+  const startMonth = firstCycleDate.getMonth() + 1;
   const endYear = endDate.getFullYear();
   const endMonth = endDate.getMonth() + 1;
 

@@ -1,6 +1,16 @@
 import { type SupabaseClient } from "@supabase/supabase-js";
 import { Client, CreateClientData, ServiceResult } from "./types";
 
+interface ClientBillingInfo {
+  id: string;
+  monthly_price: number;
+  created_at: string;
+  due_day?: number | null;
+  billing_type?: string | null;
+  total_installments?: number | null;
+  number_of_cycles?: number | null;
+}
+
 function buildLocalDate(year: number, month: number, day: number): Date {
   return new Date(year, month - 1, day, 12, 0, 0, 0);
 }
@@ -19,21 +29,106 @@ function getValidDueDate(year: number, month: number, dueDay: number): Date {
   return candidate;
 }
 
-function getFirstValidDueDate(dueDay: number): Date {
-  const today = new Date();
-  today.setHours(12, 0, 0, 0);
+function parseClientBaseDate(createdAt?: string | null): Date {
+  if (!createdAt) {
+    const fallback = new Date();
+    fallback.setHours(12, 0, 0, 0);
+    return fallback;
+  }
 
-  // Sempre usar o próximo mês, independente do dia atual
-  const nextMonth = buildLocalDate(
-    today.getFullYear(),
-    today.getMonth() + 2,
-    1,
-  );
-  return getValidDueDate(
-    nextMonth.getFullYear(),
-    nextMonth.getMonth() + 1,
-    dueDay,
-  );
+  const createdDate = new Date(createdAt);
+  if (isNaN(createdDate.getTime())) {
+    const fallback = new Date();
+    fallback.setHours(12, 0, 0, 0);
+    return fallback;
+  }
+
+  createdDate.setHours(12, 0, 0, 0);
+  return createdDate;
+}
+
+function getFirstDueDate(dueDay: number, createdAt: string): Date {
+  const base = new Date(createdAt);
+  // Always start from the next month after creation
+  return new Date(base.getFullYear(), base.getMonth() + 1, dueDay, 12, 0, 0, 0);
+}
+
+export async function rebuildClientBillingCycles(
+  supabase: SupabaseClient,
+  client: ClientBillingInfo,
+): Promise<ServiceResult<{ rebuilt: number }>> {
+  const dueDay = Number(client.due_day || 5);
+  const billingType = client.billing_type || "monthly";
+  const totalInstallments =
+    client.total_installments || client.number_of_cycles || 1;
+
+  const cycles = [];
+  let currentDueDate = getFirstDueDate(dueDay, client.created_at);
+
+  for (let i = 0; i < totalInstallments; i++) {
+    const cycleYear = currentDueDate.getFullYear();
+    const cycleMonth = currentDueDate.getMonth() + 1;
+    const referenceDate = buildLocalDate(cycleYear, cycleMonth, 1);
+
+    cycles.push({
+      client_id: client.id,
+      cycle_year: cycleYear,
+      cycle_month: cycleMonth,
+      reference_date: formatLocalDate(referenceDate),
+      due_date: formatLocalDate(currentDueDate),
+      expected_amount: client.monthly_price,
+      paid_amount: 0,
+      status: "pending" as const,
+    });
+
+    // Advance to next cycle based on billing type
+    if (billingType === "monthly") {
+      currentDueDate = new Date(
+        currentDueDate.getFullYear(),
+        currentDueDate.getMonth() + 1,
+        dueDay,
+        12,
+        0,
+        0,
+        0,
+      );
+    } else if (billingType === "weekly") {
+      currentDueDate = new Date(
+        currentDueDate.getTime() + 7 * 24 * 60 * 60 * 1000,
+      );
+    } else if (billingType === "yearly") {
+      currentDueDate = new Date(
+        currentDueDate.getFullYear() + 1,
+        currentDueDate.getMonth(),
+        dueDay,
+        12,
+        0,
+        0,
+        0,
+      );
+    }
+  }
+
+  const { error: deleteError } = await supabase
+    .from("billing_cycles")
+    .delete()
+    .eq("client_id", client.id);
+
+  if (deleteError) {
+    return { success: false, error: deleteError.message };
+  }
+
+  if (cycles.length > 0) {
+    const { error: insertError } = await supabase
+      .from("billing_cycles")
+      .insert(cycles);
+
+    if (insertError) {
+      return { success: false, error: insertError.message };
+    }
+  }
+
+  return { success: true, data: { rebuilt: cycles.length } };
 }
 
 function addMonths(year: number, month: number, amount: number) {
@@ -126,34 +221,49 @@ export async function createClient({
     const billingTypeName = (insertData.billing_type as string) || "monthly";
 
     const cycles = [];
-    let currentDate = getFirstValidDueDate(dueDay);
+    let currentDueDate = getFirstDueDate(dueDay, result.created_at);
 
     for (let i = 0; i < totalInstallments; i++) {
-      const cycleYear = currentDate.getFullYear();
-      const cycleMonth = currentDate.getMonth() + 1;
-      const referenceDate = new Date(cycleYear, cycleMonth - 1, 1);
-      const dueDate = getValidDueDate(cycleYear, cycleMonth, dueDay);
+      const cycleYear = currentDueDate.getFullYear();
+      const cycleMonth = currentDueDate.getMonth() + 1;
+      const referenceDate = buildLocalDate(cycleYear, cycleMonth, 1);
 
       cycles.push({
         client_id: result.id,
         cycle_year: cycleYear,
         cycle_month: cycleMonth,
         reference_date: formatLocalDate(referenceDate),
-        due_date: formatLocalDate(dueDate),
+        due_date: formatLocalDate(currentDueDate),
         expected_amount: monthlyPriceNum,
         paid_amount: 0,
         status: "pending" as const,
       });
 
+      // Advance to next cycle based on billing type
       if (billingTypeName === "monthly") {
-        const next = addMonths(cycleYear, cycleMonth, 1);
-        currentDate = getValidDueDate(next.year, next.month, dueDay);
+        currentDueDate = new Date(
+          currentDueDate.getFullYear(),
+          currentDueDate.getMonth() + 1,
+          dueDay,
+          12,
+          0,
+          0,
+          0,
+        );
       } else if (billingTypeName === "weekly") {
-        const next = new Date(currentDate);
-        next.setDate(next.getDate() + 7);
-        currentDate = next;
+        currentDueDate = new Date(
+          currentDueDate.getTime() + 7 * 24 * 60 * 60 * 1000,
+        );
       } else if (billingTypeName === "yearly") {
-        currentDate = getValidDueDate(cycleYear + 1, cycleMonth, dueDay);
+        currentDueDate = new Date(
+          currentDueDate.getFullYear() + 1,
+          currentDueDate.getMonth(),
+          dueDay,
+          12,
+          0,
+          0,
+          0,
+        );
       }
     }
 

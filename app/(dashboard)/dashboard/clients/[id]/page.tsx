@@ -231,6 +231,7 @@ export default function ClientDetailPage() {
           clientName={client.name}
           monthlyPrice={client.monthly_price}
           dueDay={client.due_day || 5}
+          clientCreatedAt={client.created_at}
         />
       </motion.div>
     </div>

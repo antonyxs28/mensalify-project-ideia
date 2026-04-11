@@ -49,12 +49,17 @@ export function parseReferenceDate(
   return isNaN(parsed.getTime()) ? fallback : parsed;
 }
 
-export function calculateFirstDueDate(dueDay: number = 5): Date {
-  const today = new Date();
-  today.setHours(12, 0, 0, 0);
+export function calculateFirstDueDate(
+  dueDay: number,
+  baseDate: Date,
+): Date {
+  if (!baseDate || isNaN(baseDate.getTime())) {
+    throw new Error("calculateFirstDueDate requires a valid baseDate (client.created_at)");
+  }
+  const date = new Date(baseDate);
+  date.setHours(12, 0, 0, 0);
 
-  // Sempre usar o próximo mês, independente do dia atual
-  return getValidDueDate(today.getFullYear(), today.getMonth() + 2, dueDay);
+  return getValidDueDate(date.getFullYear(), date.getMonth() + 2, dueDay);
 }
 
 export function calculateDueDate(
@@ -91,6 +96,10 @@ export function computeStatus(
   const isOverdue = daysOverdue > limit;
   const isCriticallyOverdue = daysOverdue > limit * 2;
 
+  // Check for overpaid FIRST - before checking for paid
+  if (paidAmount > expectedAmount) {
+    return "overpaid";
+  }
   if (paidAmount >= expectedAmount && paidAmount > 0) {
     return "paid";
   }
@@ -103,14 +112,15 @@ export function computeStatus(
 export function normalizeCycle(
   cycle: BillingCycle | Record<string, unknown>,
   isVirtual: boolean = false,
+  baseDate?: Date,
 ): NormalizedBillingCycle {
   const expectedAmount = Number(cycle.expected_amount) || 0;
   const paidAmount = Number(cycle.paid_amount) || 0;
 
   const referenceDate = parseReferenceDate(
     (cycle.reference_date as string) || "",
-    Number(cycle.cycle_year) || new Date().getFullYear(),
-    Number(cycle.cycle_month) || new Date().getMonth() + 1,
+    Number(cycle.cycle_year) || (baseDate || new Date()).getFullYear(),
+    Number(cycle.cycle_month) || (baseDate || new Date()).getMonth() + 1,
   );
 
   const year = referenceDate.getFullYear();
@@ -156,155 +166,176 @@ export function normalizeCycle(
 
 export function detectCurrentMonth(
   cycles: NormalizedBillingCycle[],
-  dueDay: number = 5,
 ): { hasCurrent: boolean; cycle: NormalizedBillingCycle | null } {
-  const firstDue = calculateFirstDueDate(dueDay);
-  const currentYear = firstDue.getFullYear();
-  const currentMonth = firstDue.getMonth() + 1;
-
-  console.log("[normalize] detectCurrentMonth - looking for:", {
-    currentYear,
-    currentMonth,
-  });
-  console.log(
-    "[normalize] detectCurrentMonth - available cycles:",
-    cycles.map((c) => `${c.year}-${String(c.month).padStart(2, "0")}`),
-  );
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth() + 1;
 
   const existingCycle = cycles.find(
     (c) => c.year === currentYear && c.month === currentMonth && !c.isVirtual,
   );
 
-  if (existingCycle) {
-    console.log("[normalize] detectCurrentMonth - FOUND existing cycle:", {
-      id: existingCycle.id,
-      year: existingCycle.year,
-      month: existingCycle.month,
-      isVirtual: existingCycle.isVirtual,
-    });
-    return { hasCurrent: true, cycle: existingCycle };
-  }
-
-  console.log(
-    "[normalize] detectCurrentMonth - NO cycle found for current month",
-  );
-  return { hasCurrent: false, cycle: null };
+  return { 
+    hasCurrent: !!existingCycle, 
+    cycle: existingCycle || null 
+  };
 }
 
 export function createVirtualCurrentCycle(
   monthlyPrice: number,
-  dueDay: number = 5,
-  clientId: string = "",
+  dueDay: number,
+  clientId: string,
+  baseDate: Date,
 ): NormalizedBillingCycle {
-  const firstDueDate = calculateFirstDueDate(dueDay);
-  const year = firstDueDate.getFullYear();
-  const month = firstDueDate.getMonth() + 1;
-  const referenceDate = buildLocalDate(year, month, 1);
+  throw new Error("createVirtualCurrentCycle should NEVER be called - frontend must never generate cycles");
+}
 
-  console.log("[normalize] createVirtualCurrentCycle - creating for:", {
-    year,
-    month,
-    referenceDate: referenceDate.toISOString(),
-    dueDate: firstDueDate.toISOString(),
-    dueDay,
-  });
+export interface ClientBillingInfo {
+  id: string;
+  created_at: string;
+  monthly_price: number;
+  due_day?: number;
+  billing_type?: string;
+  total_installments?: number;
+  number_of_cycles?: number;
+}
 
-  return {
-    id: `virtual-${year}-${String(month).padStart(2, "0")}`,
-    clientId,
-    year,
-    month,
-    referenceDate,
-    dueDate: firstDueDate,
-    expectedAmount: monthlyPrice,
-    paidAmount: 0,
-    status: computeStatus(0, monthlyPrice, firstDueDate),
-    isVirtual: true,
-    createdAt: new Date(),
-    updatedAt: null,
-  };
+function generateCyclesFromCreatedAt(
+  client: ClientBillingInfo,
+  upToDate?: Date,
+): NormalizedBillingCycle[] {
+  const dueDay = client.due_day || 5;
+  const totalInstallments = client.total_installments || client.number_of_cycles || 24;
+  const createdDate = new Date(client.created_at);
+  
+  if (isNaN(createdDate.getTime())) {
+    console.log('[normalize] Invalid createdDate:', client.created_at);
+    return [];
+  }
+
+  console.log('[normalize] Generating from createdDate:', createdDate.toISOString(), 'client.created_at:', client.created_at);
+
+  // Generate cycles for 24 months from created_at
+  const cycles: NormalizedBillingCycle[] = [];
+
+  for (let i = 0; i < totalInstallments; i++) {
+    // Start from NEXT month after created_at
+    const cycleDate = new Date(createdDate);
+    cycleDate.setMonth(cycleDate.getMonth() + i + 1);
+    cycleDate.setDate(1);
+    
+    const year = cycleDate.getFullYear();
+    const month = cycleDate.getMonth() + 1;
+    const referenceDate = buildLocalDate(year, month, 1);
+    const dueDate = getValidDueDate(year, month, dueDay);
+    
+    const status = computeStatus(0, client.monthly_price, dueDate);
+
+    console.log('[normalize] Generated cycle:', { year, month, dueDate: dueDate?.toISOString(), status });
+
+    cycles.push({
+      id: `generated-${client.id}-${year}-${month}`,
+      clientId: client.id,
+      year,
+      month,
+      referenceDate,
+      dueDate,
+      expectedAmount: client.monthly_price,
+      paidAmount: 0,
+      status,
+      isVirtual: true,
+      createdAt: createdDate,
+      updatedAt: null,
+    });
+  }
+
+  return cycles;
+}
+
+function mergeCyclesWithDB(
+  generated: NormalizedBillingCycle[],
+  dbCycles: NormalizedBillingCycle[],
+): NormalizedBillingCycle[] {
+  const merged = new Map<string, NormalizedBillingCycle>();
+  
+  console.log('[normalize] DB cycles:', dbCycles.length);
+  console.log('[normalize] Generated cycles:', generated.length);
+  
+  // Primeiro: adicionar TODOS os ciclos do DB (fonte da verdade)
+  // dbCycles aqui já passaram por normalizeCycle, então usam year/month
+  for (const dbCycle of dbCycles) {
+    const year = dbCycle.year;
+    const month = dbCycle.month;
+    
+    // Validar
+    if (!year || isNaN(year) || !month || isNaN(month)) {
+      console.log('[normalize] Skipping invalid DB cycle:', dbCycle.id, year, month);
+      continue;
+    }
+    
+    const key = `${year}-${String(month).padStart(2, "0")}`;
+    const paidAmount = dbCycle.paidAmount;
+    const expectedAmount = dbCycle.expectedAmount;
+    const status = dbCycle.status || computeStatus(paidAmount, expectedAmount, dbCycle.dueDate);
+    
+    console.log('[normalize] Matched DB cycle:', key, 'paid:', paidAmount, 'status:', status);
+    
+    merged.set(key, {
+      id: dbCycle.id,
+      clientId: dbCycle.clientId,
+      year: dbCycle.year,
+      month: dbCycle.month,
+      referenceDate: dbCycle.referenceDate,
+      dueDate: dbCycle.dueDate,
+      expectedAmount: dbCycle.expectedAmount,
+      paidAmount: dbCycle.paidAmount,
+      status: dbCycle.status,
+      isVirtual: false,
+      createdAt: dbCycle.createdAt,
+      updatedAt: dbCycle.updatedAt,
+    });
+  }
+  
+  // Segundo: preencher lacunas com ciclos gerados
+  for (const genCycle of generated) {
+    const key = `${genCycle.year}-${String(genCycle.month).padStart(2, "0")}`;
+    
+    if (!merged.has(key)) {
+      merged.set(key, genCycle);
+      console.log('[normalize] Filled gap with generated:', key);
+    }
+  }
+  
+  const result = [...merged.values()].sort(
+    (a, b) => a.referenceDate.getTime() - b.referenceDate.getTime(),
+  );
+  
+  console.log('[normalize] Final result:', result.length);
+  
+  return result;
 }
 
 export function normalizeAndSortCycles(
   dbCycles: (BillingCycle | Record<string, unknown>)[],
-  monthlyPrice: number,
-  dueDay: number = 5,
-  clientId: string = "",
+  client?: ClientBillingInfo | null,
 ): NormalizedBillingCycle[] {
-  console.log(
-    "[normalize] normalizeAndSortCycles - INPUT dbCycles:",
-    dbCycles.length,
-  );
-  console.log(
-    "[normalize] normalizeAndSortCycles - dbCycles raw:",
-    dbCycles.map((c) => ({
-      id: c.id,
-      year: c.cycle_year,
-      month: c.cycle_month,
-      reference_date: c.reference_date,
-      due_date: c.due_date,
-      expected_amount: c.expected_amount,
-      paid_amount: c.paid_amount,
-    })),
-  );
-
-  const normalizedCycles = dbCycles.map((cycle) =>
-    normalizeCycle(cycle, false),
-  );
-
-  const firstValidDueDate = calculateFirstDueDate(dueDay);
-  const firstValidReferenceDate = buildLocalDate(
-    firstValidDueDate.getFullYear(),
-    firstValidDueDate.getMonth() + 1,
-    1,
-  );
-
-  const validCycles = normalizedCycles.filter(
-    (cycle) => cycle.referenceDate >= firstValidReferenceDate,
-  );
-
-  const { hasCurrent } = detectCurrentMonth(validCycles, dueDay);
-
-  let allCycles = validCycles;
-  if (!hasCurrent && monthlyPrice > 0) {
-    const virtualCycle = createVirtualCurrentCycle(
-      monthlyPrice,
-      dueDay,
-      clientId,
-    );
-    console.log("[normalize] normalizeAndSortCycles - created virtual cycle:", {
-      id: virtualCycle.id,
-      year: virtualCycle.year,
-      month: virtualCycle.month,
-      isVirtual: virtualCycle.isVirtual,
-    });
-    allCycles = [virtualCycle, ...validCycles];
+  if (!client) {
+    return dbCycles.map((cycle) => normalizeCycle(cycle));
   }
 
-  const uniqueCycles = new Map<string, NormalizedBillingCycle>();
-  for (const cycle of allCycles) {
-    const key = `${cycle.year}-${String(cycle.month).padStart(2, "0")}`;
-    if (!uniqueCycles.has(key)) {
-      uniqueCycles.set(key, cycle);
-    }
+  const generatedCycles = generateCyclesFromCreatedAt(client);
+  
+  if (dbCycles.length === 0) {
+    return generatedCycles;
   }
 
-  const sortedCycles = [...uniqueCycles.values()].sort(
-    (a, b) => a.referenceDate.getTime() - b.referenceDate.getTime(),
-  );
-
-  console.log(
-    "[normalize] normalizeAndSortCycles - OUTPUT cycles:",
-    sortedCycles.map((c) => ({
-      id: c.id,
-      year: c.year,
-      month: c.month,
-      isVirtual: c.isVirtual,
-      status: c.status,
-    })),
-  );
-
-  return sortedCycles;
+  const dbNormalized = dbCycles.map((cycle) => normalizeCycle(cycle));
+  const merged = mergeCyclesWithDB(generatedCycles, dbNormalized as NormalizedBillingCycle[]);
+  
+  console.log('[normalize] Final cycles count:', merged.length);
+  console.log('[normalize] Sample:', merged.slice(0,3).map(c => `${c.year}-${c.month}:${c.status}:${c.paidAmount}/${c.expectedAmount}`));
+  
+  return merged;
 }
 
 export function calculateStats(cycles: NormalizedBillingCycle[]): {
@@ -329,7 +360,11 @@ export function calculateStats(cycles: NormalizedBillingCycle[]): {
 
     switch (cycle.status) {
       case "paid":
-        totalPaid += cycle.expectedAmount;
+        totalPaid += cycle.paidAmount;
+        paidCyclesCount++;
+        break;
+      case "overpaid":
+        totalPaid += cycle.paidAmount;
         paidCyclesCount++;
         break;
       case "pending":

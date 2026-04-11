@@ -38,16 +38,16 @@ export interface NormalizedBillingCycle {
   dueDate: Date;
   expectedAmount: number;
   paidAmount: number;
-  status: "pending" | "paid" | "overdue" | "partial";
+  status: "pending" | "paid" | "overdue" | "partial" | "overpaid";
   isVirtual: boolean;
   createdAt: Date;
   updatedAt: Date | null;
 }
 
-export const cycleStatusSchema = z.enum(["pending", "paid", "overdue", "partial"]);
+export const cycleStatusSchema = z.enum(["pending", "paid", "overdue", "partial", "overpaid"]);
 
 export const updateCycleSchema = z.object({
-  status: cycleStatusSchema.optional(),
+  status: z.enum(["pending", "paid", "overdue", "partial"]).optional(),
   expected_amount: z.number().positive().optional(),
   paid_amount: z.number().min(0).optional(),
 });

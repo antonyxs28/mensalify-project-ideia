@@ -1,5 +1,6 @@
 import { type SupabaseClient } from "@supabase/supabase-js";
 import { Client, ServiceResult, UpdateClientInput } from "./types";
+import { rebuildClientBillingCycles } from "./create-client.service";
 
 interface UpdateClientParams {
   supabase: SupabaseClient;
@@ -41,6 +42,42 @@ export async function updateClient({
     updateData.monthly_price = priceNum;
   }
 
+  if (data.due_day !== undefined) {
+    updateData.due_day = data.due_day;
+  }
+
+  if (data.billing_type !== undefined) {
+    updateData.billing_type = data.billing_type;
+  }
+
+  if (data.total_installments !== undefined) {
+    updateData.total_installments = data.total_installments;
+  }
+
+  if (data.number_of_cycles !== undefined) {
+    updateData.number_of_cycles = data.number_of_cycles;
+  }
+
+  if (data.created_at !== undefined) {
+    updateData.created_at = data.created_at;
+  }
+
+  const rebuildFields = [
+    "created_at",
+    "due_day",
+    "billing_type",
+    "total_installments",
+    "number_of_cycles",
+  ];
+  let shouldRebuildCycles = false;
+
+  for (const field of rebuildFields) {
+    if (data[field as keyof UpdateClientInput] !== undefined) {
+      shouldRebuildCycles = true;
+      break;
+    }
+  }
+
   if (Object.keys(updateData).length === 0) {
     return { success: false, error: "No fields to update" };
   }
@@ -59,6 +96,29 @@ export async function updateClient({
       success: false,
       error: `Failed to update client: ${error.message}`,
     };
+  }
+
+  if (shouldRebuildCycles && result) {
+    const rebuildResult = await rebuildClientBillingCycles(supabase, {
+      id: clientId,
+      monthly_price: Number(result.monthly_price),
+      created_at: result.created_at,
+      due_day: result.due_day,
+      billing_type: result.billing_type,
+      total_installments: result.total_installments,
+      number_of_cycles: result.number_of_cycles,
+    });
+
+    if (!rebuildResult.success) {
+      console.error(
+        "[DB] updateClient - Failed to rebuild billing cycles:",
+        rebuildResult.error,
+      );
+      return {
+        success: false,
+        error: `Failed to rebuild billing cycles: ${rebuildResult.error}`,
+      };
+    }
   }
 
   console.log("[DB] updateClient - Result:", JSON.stringify(result));

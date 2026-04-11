@@ -27,9 +27,6 @@ import { supabase } from "@/lib/supabase/client";
 import {
   normalizeAndSortCycles,
   calculateStats,
-  detectCurrentMonth,
-  createVirtualCurrentCycle,
-  getCurrentMonthKey,
   computeStatus,
 } from "@/services/billing-cycles/normalize";
 import type { NormalizedBillingCycle } from "@/services/billing-cycles/types";
@@ -67,9 +64,29 @@ const statusConfig = {
     icon: AlertCircle,
     className: "bg-destructive/10 text-destructive border-destructive/20",
   },
+  overpaid: {
+    label: "Pago a mais",
+    icon: AlertCircle,
+    className: "bg-amber-500/10 text-amber-600 border-amber-500/20",
+  },
 };
 
-type CycleStatus = "pending" | "paid" | "overdue" | "partial";
+type CycleStatus = "pending" | "paid" | "overdue" | "partial" | "overpaid";
+
+function computeOverdueStatus(cycle: { dueDate: Date; paidAmount: number; expectedAmount: number }): CycleStatus {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const due = new Date(cycle.dueDate);
+  due.setHours(0, 0, 0, 0);
+  
+  const daysOverdue = Math.floor((today.getTime() - due.getTime()) / (1000 * 60 * 60 * 24));
+  
+  if (cycle.paidAmount > cycle.expectedAmount) return "overpaid";
+  if (cycle.paidAmount >= cycle.expectedAmount && cycle.paidAmount > 0) return "paid";
+  if (cycle.paidAmount > 0) return daysOverdue > 30 ? "overdue" : "partial";
+  if (daysOverdue > 30) return "overdue";
+  return "pending";
+}
 
 interface CycleCardProps {
   cycle: NormalizedBillingCycle;
@@ -84,14 +101,23 @@ function CycleCard({
   onPayPartial,
   isProcessing,
 }: CycleCardProps) {
-  const status =
-    statusConfig[cycle.status as CycleStatus] || statusConfig.pending;
-  const StatusIcon = status.icon;
-  const progress =
+  const dynamicStatus = computeOverdueStatus({
+    dueDate: cycle.dueDate,
+    paidAmount: cycle.paidAmount,
+    expectedAmount: cycle.expectedAmount,
+  });
+  
+  const statusCfg =
+    statusConfig[dynamicStatus as CycleStatus] || statusConfig.pending;
+  const StatusIcon = statusCfg.icon;
+  const progressPercent =
     cycle.expectedAmount > 0
-      ? (cycle.paidAmount / cycle.expectedAmount) * 100
+      ? Math.min(100, (cycle.paidAmount / cycle.expectedAmount) * 100)
       : 0;
   const remaining = cycle.expectedAmount - cycle.paidAmount;
+  const creditForNext = cycle.paidAmount > cycle.expectedAmount 
+    ? cycle.paidAmount - cycle.expectedAmount 
+    : 0;
   const referenceMonthName = cycle.referenceDate.toLocaleString("pt-BR", {
     month: "long",
   });
@@ -103,11 +129,12 @@ function CycleCard({
     cycleDue.setHours(0, 0, 0, 0);
     return cycleDue > today;
   }, [cycle.dueDate]);
-  const showPaymentActions = cycle.status !== "paid" && remaining > 0;
+  
+  const showPaymentActions = dynamicStatus !== "paid" && dynamicStatus !== "overpaid" && remaining > 0;
   const payPartialLabel =
-    cycle.status === "partial" ? "Pagar Restante" : "Pagar Parcial";
+    dynamicStatus === "partial" ? "Pagar Restante" : "Pagar Parcial";
   const payFullLabel =
-    cycle.status === "partial" ? "Completar Pagamento" : "Pagar Total";
+    dynamicStatus === "partial" ? "Completar Pagamento" : "Pagar Total";
 
   const daysOverdue = useMemo(() => {
     if (cycle.status === "paid") return 0;
@@ -148,15 +175,15 @@ function CycleCard({
             </p>
           </div>
           <div className="flex flex-col items-end gap-1">
-            <Badge className={status.className}>
+            <Badge className={statusCfg.className}>
               <StatusIcon className="mr-1 h-3 w-3" />
-              {status.label}
+              {statusCfg.label}
             </Badge>
-            {daysOverdue > 0 && cycle.status !== "paid" && (
-              <span className="text-xs text-destructive font-medium">
-                {daysOverdue} dia{daysOverdue !== 1 ? "s" : ""} em atraso
-              </span>
-            )}
+{daysOverdue > 0 && dynamicStatus !== "paid" && dynamicStatus !== "overpaid" && (
+                <span className="text-xs text-destructive font-medium">
+                  {daysOverdue} dia{daysOverdue !== 1 ? "s" : ""} em atraso
+                </span>
+              )}
           </div>
         </div>
 
@@ -171,9 +198,9 @@ function CycleCard({
             </div>
             <div className="h-2 rounded-full bg-muted overflow-hidden">
               <motion.div
-                className={`h-full ${progress >= 100 ? "bg-success" : "bg-primary"}`}
+                className={`h-full ${progressPercent >= 100 ? "bg-success" : "bg-primary"}`}
                 initial={{ width: 0 }}
-                animate={{ width: `${progress}%` }}
+                animate={{ width: `${progressPercent}%` }}
                 transition={{ duration: 0.5 }}
               />
             </div>
@@ -213,6 +240,11 @@ function CycleCard({
         {cycle.status === "partial" && remaining > 0 && (
           <p className="text-xs text-amber-600 mt-1">
             Falta pagar: {formatCurrency(remaining)}
+          </p>
+        )}
+        {creditForNext > 0 && (
+          <p className="text-xs text-amber-600 mt-1">
+            Crédito de {formatCurrency(creditForNext)} para próximo ciclo
           </p>
         )}
       </div>
@@ -417,11 +449,13 @@ export function ClientCyclesTimeline({
   clientName,
   monthlyPrice,
   dueDay = 5,
+  clientCreatedAt,
 }: {
   clientId: string;
   clientName: string;
   monthlyPrice: number;
   dueDay?: number;
+  clientCreatedAt?: string;
 }) {
   const {
     cycles: dbCycles,
@@ -434,52 +468,41 @@ export function ClientCyclesTimeline({
     useState<NormalizedBillingCycle | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isFullPayment, setIsFullPayment] = useState(false);
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [localCycles, setLocalCycles] = useState<NormalizedBillingCycle[]>([]);
+  const [updateCounter, setUpdateCounter] = useState(0);
 
-  const normalizedCycles = useMemo(() => {
-    console.log(
-      "[ClientCyclesTimeline] Input dbCycles:",
-      dbCycles?.length || 0,
-    );
-    console.log(
-      "[ClientCyclesTimeline] monthlyPrice:",
-      monthlyPrice,
-      "dueDay:",
-      dueDay,
-    );
+  const clientInfo = useMemo(() => {
+    if (!clientCreatedAt) return null;
+    return {
+      id: clientId,
+      created_at: clientCreatedAt,
+      monthly_price: monthlyPrice,
+      due_day: dueDay,
+      total_installments: 24,
+    };
+  }, [clientId, clientCreatedAt, monthlyPrice, dueDay]);
 
-    if (!dbCycles || dbCycles.length === 0) {
-      if (monthlyPrice > 0) {
-        const virtualCycle = createVirtualCurrentCycle(
-          monthlyPrice,
-          dueDay,
-          clientId,
-        );
-        console.log("[ClientCyclesTimeline] Created initial virtual cycle:", {
-          id: virtualCycle.id,
-          year: virtualCycle.year,
-          month: virtualCycle.month,
-        });
-        return [virtualCycle];
-      }
-      return [];
+  useEffect(() => {
+    console.log('[ClientCyclesTimeline] useEffect - dbCycles:', dbCycles?.length);
+    const client = clientInfo;
+    const rawDb = dbCycles || [];
+    
+    if (!client || !monthlyPrice) {
+      const result = rawDb.length > 0 ? normalizeAndSortCycles(rawDb) : [];
+      setLocalCycles(result);
+      console.log('[ClientCyclesTimeline] useEffect - no client, result:', result.length);
+      return;
     }
-
-    const result = normalizeAndSortCycles(
-      dbCycles,
-      monthlyPrice,
-      dueDay,
-      clientId,
-    );
-    console.log(
-      "[ClientCyclesTimeline] Output normalized cycles:",
-      result.length,
-    );
-    return result;
-  }, [dbCycles, monthlyPrice, dueDay, clientId]);
+    
+    const result = normalizeAndSortCycles(rawDb, client);
+    console.log('[ClientCyclesTimeline] useEffect - result:', result.length, updateCounter);
+    setLocalCycles(result);
+  }, [dbCycles, clientInfo, monthlyPrice, updateCounter]);
 
   const stats = useMemo(
-    () => calculateStats(normalizedCycles),
-    [normalizedCycles],
+    () => calculateStats(localCycles),
+    [localCycles],
   );
 
   const handlePayFull = (cycle: NormalizedBillingCycle) => {
@@ -495,45 +518,100 @@ export function ClientCyclesTimeline({
   };
 
   const handleSubmitPayment = async (amount: number) => {
-    if (!selectedCycle) return;
+    if (!selectedCycle || isProcessingPayment) return;
+
+    setIsProcessingPayment(true);
+    console.log('[ClientCyclesTimeline] Processing payment:', amount);
 
     try {
-      const headers = await getClientAuthHeaders();
+      let paymentSuccess = false;
+      let cycleId = selectedCycle.id;
 
       if (selectedCycle.isVirtual) {
-        const response = await fetch("/api/payments", {
+        const headers = await getClientAuthHeaders();
+        const monthKey = `${selectedCycle.year}-${String(selectedCycle.month).padStart(2, '0')}`;
+        
+        const createResponse = await fetch(`/api/cycles`, {
           method: "POST",
           headers,
           credentials: "include",
           body: JSON.stringify({
             client_id: clientId,
-            amount: amount,
+            cycle_year: selectedCycle.year,
+            cycle_month: selectedCycle.month,
+            expected_amount: selectedCycle.expectedAmount,
           }),
         });
 
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || "Failed to process payment");
+        if (!createResponse.ok) {
+          const errorData = await createResponse.json();
+          throw new Error(errorData.error || "Failed to create cycle");
         }
 
+        const createResult = await createResponse.json();
+        cycleId = createResult.data?.id;
+        
+        if (!cycleId) {
+          throw new Error("Failed to get cycle ID after creation");
+        }
+
+        setLocalCycles(prevCycles => 
+          prevCycles.map(c => 
+            c.year === selectedCycle.year && c.month === selectedCycle.month
+              ? { ...c, id: cycleId, isVirtual: false }
+              : c
+          )
+        );
+      }
+
+      const result = await addPayment(cycleId, amount);
+      if (result.success) {
+        paymentSuccess = true;
         toast.success("Pagamento registrado com sucesso!");
       } else {
-        const result = await addPayment(selectedCycle.id, amount);
-        if (result.success) {
-          toast.success("Pagamento registrado com sucesso!");
-        } else {
-          throw new Error(result.error);
-        }
+        throw new Error(result.error);
       }
 
       setIsModalOpen(false);
       setSelectedCycle(null);
-      refetch();
+
+      if (paymentSuccess) {
+        console.log("[ClientCyclesTimeline] Payment success, updating local state...");
+        
+        setLocalCycles(prevCycles => {
+          return prevCycles.map(cycle => {
+            if (cycle.year === selectedCycle.year && cycle.month === selectedCycle.month) {
+              const newPaidAmount = cycle.paidAmount + amount;
+              const newExpectedAmount = cycle.expectedAmount;
+              const newStatus = newPaidAmount >= newExpectedAmount 
+                ? 'paid' 
+                : newPaidAmount > 0 
+                  ? 'partial' 
+                  : cycle.status;
+              
+              console.log("[ClientCyclesTimeline] Updated cycle:", cycle.year, cycle.month, "paid:", newPaidAmount, "status:", newStatus);
+              
+              return {
+                ...cycle,
+                paidAmount: newPaidAmount,
+                status: newStatus,
+              };
+            }
+            return cycle;
+          });
+        });
+        
+        setUpdateCounter(c => c + 1);
+        
+        refetch();
+      }
     } catch (err) {
       console.error("[ClientCyclesTimeline] Payment error:", err);
       toast.error(
         err instanceof Error ? err.message : "Erro ao processar pagamento",
       );
+    } finally {
+      setIsProcessingPayment(false);
     }
   };
 
@@ -575,13 +653,13 @@ export function ClientCyclesTimeline({
           stats={stats}
         />
 
-        {normalizedCycles.length === 0 && monthlyPrice === 0 ? (
+        {localCycles.length === 0 && monthlyPrice === 0 ? (
           <EmptyState />
         ) : (
           <div className="space-y-3">
-            {normalizedCycles.map((cycle) => (
+            {localCycles.map((cycle, idx) => (
               <CycleCard
-                key={cycle.id}
+                key={`${cycle.year}-${cycle.month}-${idx}`}
                 cycle={cycle}
                 onPayFull={() => handlePayFull(cycle)}
                 onPayPartial={() => handlePayPartial(cycle)}

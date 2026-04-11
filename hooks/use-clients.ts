@@ -174,11 +174,25 @@ export function useClients() {
     async (id: string): Promise<{ success: boolean; error?: string }> => {
       try {
         const headers = await getClientAuthHeaders();
-        const response = await fetch("/api/payments", {
+
+        const { data: cycles } = await supabase
+          .from("billing_cycles")
+          .select("id")
+          .eq("client_id", id)
+          .order("cycle_year", { ascending: false })
+          .order("cycle_month", { ascending: false })
+          .limit(1);
+
+        const cycleId = cycles?.[0]?.id;
+        if (!cycleId) {
+          return { success: false, error: "No billing cycle found for client" };
+        }
+
+        const response = await fetch(`/api/cycles/${cycleId}/pay`, {
           method: "POST",
           headers,
           credentials: "include",
-          body: JSON.stringify({ client_id: id }),
+          body: JSON.stringify({ amount: 0 }),
         });
 
         if (!response.ok) {
@@ -187,7 +201,7 @@ export function useClients() {
         }
 
         const result = await response.json();
-        console.log("[useClients] markAsPaid success:", result.data?.id);
+        console.log("[useClients] markAsPaid success:", result.data?.cycle?.id);
         await fetchClients();
         return { success: true };
       } catch (err) {
