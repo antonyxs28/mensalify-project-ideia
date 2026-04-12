@@ -53,7 +53,7 @@ export function Sidebar({ isCollapsed, onCollapse }: SidebarProps) {
               transition={{ duration: 0.15 }}
             >
               <Link href="/dashboard" className="text-xl font-bold text-sidebar-foreground">
-                Mensalify
+                Zenvy
               </Link>
             </motion.div>
           )}
@@ -168,7 +168,7 @@ export function MobileSidebar() {
       {/* Mobile header */}
       <header className="fixed left-0 right-0 top-0 z-50 flex h-14 items-center justify-between border-b border-border bg-background px-4 lg:hidden">
         <Link href="/dashboard" className="text-lg font-bold text-foreground">
-          Mensalify
+          Zenvy
         </Link>
         <Button
           variant="ghost"
@@ -201,7 +201,7 @@ export function MobileSidebar() {
             >
               {/* Header */}
               <div className="flex h-14 items-center justify-between border-b border-sidebar-border px-4">
-                <span className="text-lg font-bold text-sidebar-foreground">Mensalify</span>
+                <span className="text-lg font-bold text-sidebar-foreground">Zenvy</span>
                 <Button
                   variant="ghost"
                   size="icon"

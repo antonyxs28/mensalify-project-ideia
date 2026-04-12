@@ -60,7 +60,7 @@ export default function ClientsPage() {
             Clientes
           </h1>
           <p className="mt-1 text-muted-foreground">
-            Gerencie seus clientes e assinaturas
+            Gerencie suas cobranças e clientes
           </p>
         </div>
         <Button onClick={handleAddNew} className="w-full sm:w-auto">

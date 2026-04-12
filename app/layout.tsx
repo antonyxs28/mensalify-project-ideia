@@ -8,8 +8,8 @@ import './globals.css'
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
 
 export const metadata: Metadata = {
-  title: 'Mensalify - Gestão de Assinaturas',
-  description: 'Gerencie suas assinaturas e pagamentos recorrentes de forma simples e segura',
+  title: 'Zenvy - Gestão de Cobranças',
+  description: 'Gerencie suas cobranças e pagamentos recorrentes de forma simples e segura',
   generator: 'v0.app',
 }
 

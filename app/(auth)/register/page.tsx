@@ -135,7 +135,7 @@ export default function RegisterPage() {
       >
         {/* Logo */}
         <div className="mb-8 text-center">
-          <h1 className="text-3xl font-bold text-foreground">Mensalify</h1>
+          <h1 className="text-3xl font-bold text-foreground">Zenvy</h1>
           <p className="mt-2 text-sm text-muted-foreground">
             Crie sua conta e comece a gerenciar
           </p>

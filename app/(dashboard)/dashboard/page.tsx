@@ -19,7 +19,7 @@ export default function DashboardPage() {
           Dashboard
         </h1>
         <p className="mt-1 text-muted-foreground">
-          Visão geral das suas assinaturas e pagamentos
+          Visão geral das suas cobranças e pagamentos
         </p>
       </motion.div>
 
