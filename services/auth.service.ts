@@ -1,23 +1,9 @@
 'use client'
 
 import { supabase } from '@/lib/supabase/client'
-import type { User } from '@/lib/types'
+import type { User, AuthResult, AuthService } from '@/lib/types'
 
-export interface AuthResult {
-  success: boolean
-  error?: string
-  user?: User
-}
-
-export interface AuthService {
-  login: (email: string, password: string) => Promise<AuthResult>
-  register: (name: string, email: string, password: string) => Promise<AuthResult>
-  logout: () => Promise<void>
-  getSession: () => Promise<User | null>
-  getCurrentUser: () => Promise<User | null>
-  updateProfile: (userId: string, name: string) => Promise<AuthResult>
-  subscribeToAuthChanges: (callback: (user: User | null) => void) => () => void
-}
+export type { AuthResult, AuthService }
 
 async function fetchProfile(userId: string, email: string): Promise<{ name: string }> {
   const { data: profile, error } = await supabase
@@ -131,9 +117,19 @@ export const authService: AuthService = {
     return { success: true }
   },
 
+  async resendConfirmation(email: string): Promise<AuthResult> {
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email
+    })
+    return error 
+      ? { success: false, error: error.message }
+      : { success: true }
+  },
+
   subscribeToAuthChanges(callback: (user: User | null) => void): () => void {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_IN' && session?.user) {
+      if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user) {
         const profileData = await fetchProfile(session.user.id, session.user.email || '')
         callback({
           id: session.user.id,

@@ -1,14 +1,13 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
 import { Eye, EyeOff, Mail, Lock, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { useAuth } from '@/contexts/auth-context'
-import { authService } from '@/services/auth.service'
 import { isValidEmail, sanitizeInput } from '@/lib/validation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -16,10 +15,11 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { FieldGroup, Field, FieldLabel, FieldError } from '@/components/ui/field'
 
 export default function LoginPage() {
-  const { login } = useAuth()
-  
   const router = useRouter()
-  const { isAuthenticated, isLoading: authLoading } = useAuth()
+  const searchParams = useSearchParams()
+  const redirectTo = searchParams.get('redirect') || '/dashboard'
+  
+  const { login, isAuthenticated, isLoading: authLoading } = useAuth()
   
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -29,9 +29,11 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (!authLoading && isAuthenticated) {
-      router.replace('/dashboard')
+      setTimeout(() => {
+        router.push(redirectTo)
+      }, 100)
     }
-  }, [isAuthenticated, authLoading, router])
+  }, [isAuthenticated, authLoading, router, redirectTo])
 
   const validateForm = (): boolean => {
     const newErrors: typeof errors = {}
@@ -62,15 +64,8 @@ export default function LoginPage() {
     try {
       const result = await login(sanitizeInput(email) || '', password)
 
-    if (result.success) {
-      toast.success('Login realizado com sucesso!')
-      // não precisa do router.push — o useEffect já redireciona quando isAuthenticated muda
-    }
-          
       if (result.success) {
         toast.success('Login realizado com sucesso!')
-        await new Promise(resolve => setTimeout(resolve, 100))
-        router.push('/dashboard')
       } else {
         const errorMessage = result.error?.includes('Invalid login credentials')
           ? 'Email ou senha incorretos'
@@ -102,7 +97,6 @@ export default function LoginPage() {
         transition={{ duration: 0.4, ease: 'easeOut' }}
         className="w-full max-w-md"
       >
-        {/* Logo */}
         <div className="mb-8 text-center">
           <h1 className="text-3xl font-bold text-foreground">Mensalify</h1>
           <p className="mt-2 text-sm text-muted-foreground">
