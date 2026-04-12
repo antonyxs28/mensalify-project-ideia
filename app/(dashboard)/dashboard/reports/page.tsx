@@ -54,12 +54,12 @@ export default function ReportsPage() {
 
   const revenueByStatus = useMemo(() => [
     { name: 'Recebido', receita: stats.totalReceived, status: 'paid' },
-    { name: 'Pendente', receita: stats.totalExpected, status: 'pending' }
+    { name: 'Pendente', receita: stats.totalExpected - stats.totalReceived, status: 'pending' }
   ], [stats])
 
   const monthlyStats = useMemo(() => [
     { label: 'Receita Total', value: formatCurrency(stats.totalReceived), icon: DollarSign, color: 'text-success' },
-    { label: 'Pendente', value: formatCurrency(stats.totalExpected), icon: TrendingUp, color: 'text-warning' },
+    { label: 'Pendente', value: formatCurrency(stats.totalExpected - stats.totalReceived), icon: TrendingUp, color: 'text-warning' },
     { label: 'Total Clientes', value: clients.length.toString(), icon: Users, color: 'text-primary' }
   ], [stats, clients.length])
 
