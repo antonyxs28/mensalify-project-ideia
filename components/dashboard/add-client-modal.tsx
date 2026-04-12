@@ -41,6 +41,9 @@ export function AddClientModal({ isOpen, onClose, onSuccess, editingClient }: Ad
     email?: string
     phone?: string
     monthlyPrice?: string
+    dueDay?: string
+    billingType?: string
+    numberOfCycles?: string
   }>({})
 
   const isEditing = !!editingClient
@@ -87,21 +90,39 @@ export function AddClientModal({ isOpen, onClose, onSuccess, editingClient }: Ad
     
     const sanitizedName = sanitizeInput(name)
     if (!sanitizedName) {
-      newErrors.name = 'Name is required'
+      newErrors.name = 'O nome é obrigatório'
     } else if (!isValidName(sanitizedName)) {
-      newErrors.name = 'Please enter a valid name'
+      newErrors.name = 'Nome inválido'
     }
     
     const sanitizedEmail = sanitizeInput(email)
     if (sanitizedEmail && !isValidEmail(sanitizedEmail)) {
-      newErrors.email = 'Please enter a valid email'
+      newErrors.email = 'E-mail inválido'
     }
     
     const valueNumber = parseFloat(monthlyPrice.replace(',', '.'))
     if (!monthlyPrice.trim()) {
-      newErrors.monthlyPrice = 'Monthly price is required'
+      newErrors.monthlyPrice = 'O valor mensal é obrigatório'
     } else if (!isValidMonetaryValue(valueNumber)) {
-      newErrors.monthlyPrice = 'Please enter a valid amount'
+      newErrors.monthlyPrice = 'Valor inválido'
+    } else if (valueNumber <= 0) {
+      newErrors.monthlyPrice = 'O valor deve ser maior que zero'
+    }
+    
+    const dueDayNumber = parseInt(dueDay, 10)
+    if (!dueDay || dueDayNumber < 1 || dueDayNumber > 31 || isNaN(dueDayNumber)) {
+      newErrors.dueDay = 'Dia de vencimento deve ser entre 1 e 31'
+    }
+    
+    if (!billingType) {
+      newErrors.billingType = 'O tipo de cobrança é obrigatório'
+    }
+    
+    const cyclesNumber = parseInt(numberOfCycles, 10)
+    if (!numberOfCycles.trim()) {
+      newErrors.numberOfCycles = 'O número de parcelas é obrigatório'
+    } else if (isNaN(cyclesNumber) || cyclesNumber <= 0) {
+      newErrors.numberOfCycles = 'O número de parcelas deve ser maior que zero'
     }
     
     setErrors(newErrors)
@@ -134,14 +155,14 @@ export function AddClientModal({ isOpen, onClose, onSuccess, editingClient }: Ad
       }
       
       if (result.success) {
-        toast.success(isEditing ? 'Client updated successfully!' : 'Client added successfully!')
+        toast.success(isEditing ? 'Cliente atualizado com sucesso!' : 'Cliente adicionado com sucesso!')
         onSuccess?.()
         handleClose()
       } else {
-        toast.error(result.error || 'An error occurred')
+        toast.error(result.error || 'Ocorreu um erro')
       }
     } catch {
-      toast.error('An unexpected error occurred')
+      toast.error('Ocorreu um erro inesperado')
     } finally {
       setIsSubmitting(false)
     }
@@ -170,7 +191,7 @@ export function AddClientModal({ isOpen, onClose, onSuccess, editingClient }: Ad
             <div className="rounded-xl border border-border bg-card p-6 shadow-2xl">
               <div className="mb-6 flex items-center justify-between">
                 <h2 className="text-xl font-semibold text-foreground">
-                  {isEditing ? 'Edit Client' : 'Add Client'}
+                  {isEditing ? 'Editar cliente' : 'Adicionar cliente'}
                 </h2>
                 <Button
                   variant="ghost"
@@ -186,13 +207,13 @@ export function AddClientModal({ isOpen, onClose, onSuccess, editingClient }: Ad
               <form onSubmit={handleSubmit}>
                 <FieldGroup>
                   <Field>
-                    <FieldLabel htmlFor="client-name">Name</FieldLabel>
+                    <FieldLabel htmlFor="client-name">Nome</FieldLabel>
                     <div className="relative">
                       <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                       <Input
                         id="client-name"
                         type="text"
-                        placeholder="Client name"
+                        placeholder="Nome do cliente"
                         value={name}
                         onChange={(e) => setName(e.target.value)}
                         className="pl-10"
@@ -204,13 +225,13 @@ export function AddClientModal({ isOpen, onClose, onSuccess, editingClient }: Ad
                   </Field>
 
                   <Field>
-                    <FieldLabel htmlFor="client-email">Email (optional)</FieldLabel>
+                    <FieldLabel htmlFor="client-email">E-mail (opcional)</FieldLabel>
                     <div className="relative">
                       <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                       <Input
                         id="client-email"
                         type="email"
-                        placeholder="client@email.com"
+                        placeholder="cliente@email.com"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         className="pl-10"
@@ -222,13 +243,13 @@ export function AddClientModal({ isOpen, onClose, onSuccess, editingClient }: Ad
                   </Field>
 
                   <Field>
-                    <FieldLabel htmlFor="client-phone">Phone (optional)</FieldLabel>
+                    <FieldLabel htmlFor="client-phone">Telefone (opcional)</FieldLabel>
                     <div className="relative">
                       <Phone className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                       <Input
                         id="client-phone"
                         type="tel"
-                        placeholder="+1 234 567 8900"
+                        placeholder="+55 11 99999-9999"
                         value={phone}
                         onChange={(e) => setPhone(e.target.value)}
                         className="pl-10"
@@ -240,13 +261,13 @@ export function AddClientModal({ isOpen, onClose, onSuccess, editingClient }: Ad
                   </Field>
 
                   <Field>
-                    <FieldLabel htmlFor="client-price">Monthly Price</FieldLabel>
+                    <FieldLabel htmlFor="client-price">Valor mensal</FieldLabel>
                     <div className="relative">
                       <DollarSign className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                       <Input
                         id="client-price"
                         type="text"
-                        placeholder="0.00"
+                        placeholder="0,00"
                         value={monthlyPrice}
                         onChange={(e) => setMonthlyPrice(e.target.value)}
                         className="pl-10"
@@ -258,7 +279,7 @@ export function AddClientModal({ isOpen, onClose, onSuccess, editingClient }: Ad
                   </Field>
 
                   <Field>
-                    <FieldLabel htmlFor="due-day">Day of Due Date</FieldLabel>
+                    <FieldLabel htmlFor="due-day">Dia de vencimento</FieldLabel>
                     <div className="relative">
                       <Calendar className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                       <Input
@@ -273,10 +294,11 @@ export function AddClientModal({ isOpen, onClose, onSuccess, editingClient }: Ad
                         placeholder="5"
                       />
                     </div>
+                    {errors.dueDay && <FieldError>{errors.dueDay}</FieldError>}
                   </Field>
 
                   <Field>
-                    <FieldLabel htmlFor="billing-type">Billing Type</FieldLabel>
+                    <FieldLabel htmlFor="billing-type">Tipo de cobrança</FieldLabel>
                     <select
                       id="billing-type"
                       value={billingType}
@@ -284,27 +306,30 @@ export function AddClientModal({ isOpen, onClose, onSuccess, editingClient }: Ad
                       disabled={isSubmitting}
                       className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      <option value="monthly">Monthly</option>
-                      <option value="weekly">Weekly</option>
-                      <option value="yearly">Yearly</option>
+                      <option value="monthly">Mensal</option>
+                      <option value="weekly">Semanal</option>
+                      <option value="yearly">Anual</option>
                     </select>
+                    {errors.billingType && <FieldError>{errors.billingType}</FieldError>}
                   </Field>
 
                   <Field>
-                    <FieldLabel htmlFor="number-of-cycles">Number of Cycles (optional)</FieldLabel>
+                    <FieldLabel htmlFor="number-of-cycles">Número de parcelas</FieldLabel>
                     <div className="relative">
                       <Repeat className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                       <Input
                         id="number-of-cycles"
                         type="number"
-                        placeholder="Infinite"
+                        placeholder="12"
                         value={numberOfCycles}
                         onChange={(e) => setNumberOfCycles(e.target.value)}
                         className="pl-10"
                         disabled={isSubmitting}
                         min="1"
+                        aria-invalid={!!errors.numberOfCycles}
                       />
                     </div>
+                    {errors.numberOfCycles && <FieldError>{errors.numberOfCycles}</FieldError>}
                   </Field>
                 </FieldGroup>
 
@@ -316,7 +341,7 @@ export function AddClientModal({ isOpen, onClose, onSuccess, editingClient }: Ad
                     disabled={isSubmitting}
                     className="flex-1"
                   >
-                    Cancel
+                    Cancelar
                   </Button>
                   <Button
                     type="submit"
@@ -326,10 +351,10 @@ export function AddClientModal({ isOpen, onClose, onSuccess, editingClient }: Ad
                     {isSubmitting ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Saving...
+                        Salvando...
                       </>
                     ) : (
-                      isEditing ? 'Save' : 'Add Client'
+                      isEditing ? 'Salvar' : 'Adicionar cliente'
                     )}
                   </Button>
                 </div>
