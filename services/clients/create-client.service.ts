@@ -81,16 +81,11 @@ export async function rebuildClientBillingCycles(
       status: "pending" as const,
     });
 
-    // Advance to next cycle based on billing type
     if (billingType === "monthly") {
       currentDueDate = new Date(
         currentDueDate.getFullYear(),
         currentDueDate.getMonth() + 1,
-        dueDay,
-        12,
-        0,
-        0,
-        0,
+        dueDay, 12, 0, 0, 0,
       );
     } else if (billingType === "weekly") {
       currentDueDate = new Date(
@@ -100,35 +95,62 @@ export async function rebuildClientBillingCycles(
       currentDueDate = new Date(
         currentDueDate.getFullYear() + 1,
         currentDueDate.getMonth(),
-        dueDay,
-        12,
-        0,
-        0,
-        0,
+        dueDay, 12, 0, 0, 0,
       );
     }
   }
 
+  // Busca ciclos existentes para preservar paid_amount
+  const { data: existingCycles } = await supabase
+    .from("billing_cycles")
+    .select("cycle_year, cycle_month, paid_amount, status")
+    .eq("client_id", client.id);
+
+  const existingMap = new Map(
+    (existingCycles || []).map((c: any) => [
+      `${c.cycle_year}-${c.cycle_month}`,
+      { paid_amount: c.paid_amount, status: c.status },
+    ])
+  );
+
+  // Mescla preservando pagamentos existentes
+  const cyclesToUpsert = cycles.map((cycle) => {
+    const key = `${cycle.cycle_year}-${cycle.cycle_month}`;
+    const existing = existingMap.get(key);
+    return existing
+      ? { ...cycle, paid_amount: existing.paid_amount, status: existing.status }
+      : cycle;
+  });
+
+  // Delete apenas ciclos que NÃO existem no novo set (ciclos órfãos)
   const { error: deleteError } = await supabase
     .from("billing_cycles")
     .delete()
-    .eq("client_id", client.id);
+    .eq("client_id", client.id)
+    .not(
+      "cycle_month",
+      "in",
+      `(${cyclesToUpsert.map((c) => c.cycle_month).join(",")})`,
+    );
 
   if (deleteError) {
     return { success: false, error: deleteError.message };
   }
 
-  if (cycles.length > 0) {
-    const { error: insertError } = await supabase
+  if (cyclesToUpsert.length > 0) {
+    const { error: upsertError } = await supabase
       .from("billing_cycles")
-      .insert(cycles);
+      .upsert(cyclesToUpsert, {
+        onConflict: "client_id,cycle_year,cycle_month",
+        ignoreDuplicates: false,
+      });
 
-    if (insertError) {
-      return { success: false, error: insertError.message };
+    if (upsertError) {
+      return { success: false, error: upsertError.message };
     }
   }
 
-  return { success: true, data: { rebuilt: cycles.length } };
+  return { success: true, data: { rebuilt: cyclesToUpsert.length } };
 }
 
 function addMonths(year: number, month: number, amount: number) {

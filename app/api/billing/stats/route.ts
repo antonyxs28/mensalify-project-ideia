@@ -2,6 +2,19 @@ import { NextResponse } from "next/server";
 import { getAuthenticatedContext } from "@/services/clients/auth";
 import { listClients } from "@/services/clients";
 
+function computeStatus(
+  paidAmount: number,
+  expectedAmount: number,
+  dueDate: string,
+): "pending" | "paid" | "overdue" | "partial" {
+  const today = new Date().toISOString().split("T")[0];
+  const isOverdue = dueDate ? today > dueDate : false;
+
+  if (paidAmount >= expectedAmount) return "paid";
+  if (paidAmount > 0) return "partial";
+  return isOverdue ? "overdue" : "pending";
+}
+
 export async function GET() {
   try {
     const { supabase, userId } = await getAuthenticatedContext();
@@ -12,11 +25,11 @@ export async function GET() {
     }
 
     const clients = clientsResult.data;
-    
+
     const now = new Date();
     const currentYear = now.getFullYear();
     const currentMonth = now.getMonth() + 1;
-    
+
     let totalReceived = 0;
     let totalExpected = 0;
     let overdueCycles = 0;
@@ -26,73 +39,37 @@ export async function GET() {
     let pendingCycles = 0;
     let partialCycles = 0;
 
-    for (const client of clients) {
-      const { data: cycles } = await supabase
-        .from("billing_cycles")
-        .select("*, payments!billing_cycles_id(*)")
-        .eq("client_id", client.id)
-        .order("cycle_year", { ascending: false })
-        .order("cycle_month", { ascending: false });
+    // Busca todos os ciclos de uma vez só (sem N+1 queries)
+    const clientIds = clients.map((c) => c.id);
 
-      if (cycles && cycles.length > 0) {
-        for (const cycle of cycles) {
-          totalCycles++;
-          totalExpected += cycle.expected_amount || 0;
-          totalReceived += cycle.paid_amount || 0;
+    const { data: allCycles } = await supabase
+      .from("billing_cycles")
+      .select("client_id, cycle_year, cycle_month, due_date, expected_amount, paid_amount")
+      .in("client_id", clientIds);
 
-          const status = cycle.status || 'pending';
-          switch (status) {
-            case 'paid':
-              paidCycles++;
-              break;
-            case 'pending':
-              pendingCycles++;
-              break;
-            case 'partial':
-              partialCycles++;
-              break;
-            case 'overdue':
-              overdueCycles++;
-              break;
-            default:
-              pendingCycles++;
-          }
+    for (const cycle of allCycles || []) {
+      const status = computeStatus(
+        cycle.paid_amount || 0,
+        cycle.expected_amount || 0,
+        cycle.due_date,
+      );
 
-          if (cycle.cycle_year === currentYear && cycle.cycle_month === currentMonth) {
-            currentMonthRevenue += cycle.paid_amount || 0;
-          }
-        }
-      } else {
-        totalExpected += client.monthly_price || 0;
-        
-        const monthStr = `${currentYear}-${String(currentMonth).padStart(2, '0')}-01`;
-        const { data: payments } = await supabase
-          .from("payments")
-          .select("amount, paid, paid_at, month")
-          .eq("client_id", client.id)
-          .order("month", { ascending: false });
+      totalCycles++;
+      totalExpected += cycle.expected_amount || 0;
+      totalReceived += cycle.paid_amount || 0;
 
-        if (payments && payments.length > 0) {
-          totalCycles += payments.length;
-          
-          const currentMonthPayment = payments.find((p: any) => p.month === monthStr);
-          if (currentMonthPayment) {
-            if (currentMonthPayment.paid) {
-              paidCycles++;
-              currentMonthRevenue += currentMonthPayment.amount || 0;
-            } else {
-              pendingCycles++;
-            }
-          } else {
-            pendingCycles++;
-          }
+      switch (status) {
+        case "paid":       paidCycles++;     break;
+        case "pending":    pendingCycles++;  break;
+        case "partial":    partialCycles++;  break;
+        case "overdue":    overdueCycles++;  break;
+      }
 
-          const paidPayments = payments.filter((p: any) => p.paid && p.amount);
-          totalReceived += paidPayments.reduce((sum: number, p: any) => sum + (p.amount || 0), 0);
-        } else {
-          totalCycles++;
-          pendingCycles++;
-        }
+      if (
+        cycle.cycle_year === currentYear &&
+        cycle.cycle_month === currentMonth
+      ) {
+        currentMonthRevenue += cycle.paid_amount || 0;
       }
     }
 

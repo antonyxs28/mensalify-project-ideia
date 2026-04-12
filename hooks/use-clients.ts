@@ -15,7 +15,29 @@ import { generateLastNMonths } from "@/lib/utils";
 interface ClientWithStatus extends Client {
   status: PaymentStatus;
   monthKey: string;
+  paidCycles: number;
+  totalCycles: number;
 }
+
+const computeCycleStatus = (
+  paidAmount: number,
+  expectedAmount: number,
+  dueDate: string
+): "paid" | "partial" | "overdue" | "pending" => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const due = new Date(dueDate);
+  due.setHours(0, 0, 0, 0);
+  const isOverdue = today > due;
+
+  if (paidAmount >= expectedAmount) {
+    return "paid";
+  }
+  if (paidAmount > 0) {
+    return isOverdue ? "overdue" : "partial";
+  }
+  return isOverdue ? "overdue" : "pending";
+};
 
 const getMonthKey = (date: Date = new Date()): string => {
   const year = date.getFullYear();
@@ -52,6 +74,7 @@ async function safeJsonParse(response: Response): Promise<{ error?: string }> {
 
 export function useClients() {
   const [clients, setClients] = useState<ClientWithStatus[]>([]);
+  const [chartData, setChartData] = useState<ChartData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -64,6 +87,7 @@ export function useClients() {
 
       if (clients.length === 0) {
         setClients([]);
+        setChartData(generateLastNMonths(6).map(m => ({ month: m, monthKey: m, received: 0, expected: 0 })));
         setIsLoading(false);
         return;
       }
@@ -71,29 +95,63 @@ export function useClients() {
       const clientIds = clients.map((c) => c.id);
       const currentMonthKey = getMonthKey();
 
-      const currentMonthDb = `${currentMonthKey}-01`;
+      const { data: allCycles, error: cyclesError } = await supabase
+        .from("billing_cycles")
+        .select("client_id, cycle_year, cycle_month, paid_amount, expected_amount, due_date")
+        .in("client_id", clientIds);
 
-      const { data: payments, error: paymentsError } = await supabase
-        .from("payments")
-        .select("*")
-        .in("client_id", clientIds)
-        .eq("month", currentMonthDb);
-
-      if (paymentsError) {
-        console.error("[useClients] fetchPayments error:", paymentsError);
+      if (cyclesError) {
+        console.error("[useClients] fetchCycles error:", cyclesError);
       }
 
-      const paidClientIds = new Set(
-        (payments || []).filter((p) => p.paid).map((p) => p.client_id),
+      const computedCycles = (allCycles || []).map(cycle => ({
+        ...cycle,
+        status: computeCycleStatus(cycle.paid_amount, cycle.expected_amount, cycle.due_date),
+      }));
+
+      const cyclesByClient = computedCycles.reduce(
+        (acc: Record<string, { total: number; paid: number }>, cycle) => {
+          if (!acc[cycle.client_id]) {
+            acc[cycle.client_id] = { total: 0, paid: 0 };
+          }
+          acc[cycle.client_id].total += 1;
+          if (cycle.status === "paid") {
+            acc[cycle.client_id].paid += 1;
+          }
+          return acc;
+        },
+        {},
       );
 
-      const clientsWithStatus: ClientWithStatus[] = clients.map((client) => ({
-        ...client,
-        status: (paidClientIds.has(client.id)
-          ? "pago"
-          : "pendente") as PaymentStatus,
-        monthKey: currentMonthKey,
-      }));
+      const chartDataMap = computedCycles.reduce<Record<string, ChartData>>((acc, cycle) => {
+        const monthKey = `${cycle.cycle_year}-${String(cycle.cycle_month).padStart(2, "0")}`;
+        if (!acc[monthKey]) {
+          acc[monthKey] = { month: monthKey, monthKey, received: 0, expected: 0 };
+        }
+        acc[monthKey].expected += Number(cycle.expected_amount) || 0;
+        acc[monthKey].received += Number(cycle.paid_amount) || 0;
+        return acc;
+      }, {});
+
+      const last6Months = generateLastNMonths(6);
+      const newChartData = last6Months.map(monthKey => {
+        const existing = chartDataMap[monthKey];
+        return existing || { month: monthKey, monthKey, received: 0, expected: 0 };
+      });
+
+      setChartData(newChartData);
+
+      const clientsWithStatus: ClientWithStatus[] = clients.map((client) => {
+        const clientCycles = cyclesByClient[client.id] || { total: 0, paid: 0 };
+        const isAllPaid = clientCycles.total > 0 && clientCycles.paid === clientCycles.total;
+        return {
+          ...client,
+          status: isAllPaid ? "pago" : "pendente",
+          monthKey: currentMonthKey,
+          paidCycles: clientCycles.paid,
+          totalCycles: clientCycles.total,
+        };
+      });
 
       setClients(clientsWithStatus);
     } catch (err) {
@@ -237,30 +295,14 @@ export function useClients() {
   }, [clients]);
 
   const getChartData = useCallback((): ChartData[] => {
-    const allMonths = generateLastNMonths(6);
-
-    const grouped = clients.reduce<Record<string, ChartData>>((acc, client) => {
-      const month = client.monthKey;
-      if (!acc[month]) {
-        acc[month] = { month, monthKey: month, received: 0, expected: 0 };
-      }
-      acc[month].expected += client.monthly_price || 0;
-      if (client.status === "pago") {
-        acc[month].received += client.monthly_price || 0;
-      }
-      return acc;
-    }, {});
-
-    return allMonths.map((month) => {
-      const existing = grouped[month];
-      return existing || { month, monthKey: month, received: 0, expected: 0 };
-    });
-  }, [clients]);
+    return chartData;
+  }, [chartData]);
 
   const refetch = useCallback(() => fetchClients(), [fetchClients]);
 
   return {
     clients,
+    chartData,
     isLoading,
     error,
     addClient,

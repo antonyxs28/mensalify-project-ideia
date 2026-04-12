@@ -15,66 +15,53 @@ import {
   Cell,
   Legend
 } from 'recharts'
-import { Download, TrendingUp, Users, DollarSign } from 'lucide-react'
+import { Download, TrendingUp, Users, DollarSign, Calendar } from 'lucide-react'
 
 import { useClients } from '@/contexts/clients-context'
-import type { ClientWithStatus } from '@/lib/types'
+import { useBillingStats } from '@/hooks/use-billing-cycles'
 import { formatCurrency } from '@/lib/validation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 
 const COLORS = {
-  pago: 'oklch(0.65 0.12 200)',
-  pendente: 'oklch(0.75 0.15 85)'
+  paid: 'oklch(0.65 0.15 150)',
+  overdue: 'oklch(0.65 0.15 25)',
+  pending: 'oklch(0.75 0.15 85)',
+  partial: 'oklch(0.70 0.15 55)'
 }
 
 const statusLabels: Record<string, string> = {
-  pago: 'Pago',
-  pendente: 'Pendente'
+  paid: 'Pagas',
+  overdue: 'Vencidas',
+  pending: 'Pendentes',
+  partial: 'Parciais'
 }
 
 export default function ReportsPage() {
-  const { clients: rawClients, getStats } = useClients()
-  const clients = rawClients as ClientWithStatus[]
-  const stats = getStats()
+  const { clients: rawClients } = useClients()
+  const clients = rawClients
+  const { stats, isLoading: statsLoading } = useBillingStats()
 
   const paymentStatusDistribution = useMemo(() => {
-    const distribution = clients.reduce((acc, client) => {
-      acc[client.status] = (acc[client.status] || 0) + 1
-      return acc
-    }, {} as Record<string, number>)
-
-    return Object.entries(distribution).map(([status, count]) => ({
-      name: statusLabels[status] || status,
-      value: count,
-      status
-    }))
-  }, [clients])
-
-  const revenueByStatus = useMemo(() => {
-    const revenue = clients.reduce((acc, client) => {
-      if (client.status === 'pago') {
-        acc['pago'] = (acc['pago'] || 0) + client.monthly_price
-      } else {
-        acc['pendente'] = (acc['pendente'] || 0) + client.monthly_price
-      }
-      return acc
-    }, {} as Record<string, number>)
-
-    return Object.entries(revenue).map(([status, value]) => ({
-      name: statusLabels[status] || status,
-      receita: value,
-      status
-    }))
-  }, [clients])
-
-  const monthlyStats = useMemo(() => {
-    return [
-      { label: 'Receita Total', value: formatCurrency(stats.totalReceived), icon: DollarSign, color: 'text-success' },
-      { label: 'Pendente', value: formatCurrency(stats.totalPending), icon: TrendingUp, color: 'text-warning' },
-      { label: 'Total Clientes', value: stats.totalClients.toString(), icon: Users, color: 'text-primary' }
-    ]
+    const data = [
+      { name: statusLabels.paid, value: stats.paidCycles, status: 'paid' },
+      { name: statusLabels.overdue, value: stats.overdueCycles, status: 'overdue' },
+      { name: statusLabels.pending, value: stats.pendingCycles, status: 'pending' },
+      { name: statusLabels.partial, value: stats.partialCycles, status: 'partial' }
+    ].filter(d => d.value > 0)
+    return data
   }, [stats])
+
+  const revenueByStatus = useMemo(() => [
+    { name: 'Recebido', receita: stats.totalReceived, status: 'paid' },
+    { name: 'Pendente', receita: stats.totalExpected, status: 'pending' }
+  ], [stats])
+
+  const monthlyStats = useMemo(() => [
+    { label: 'Receita Total', value: formatCurrency(stats.totalReceived), icon: DollarSign, color: 'text-success' },
+    { label: 'Pendente', value: formatCurrency(stats.totalExpected), icon: TrendingUp, color: 'text-warning' },
+    { label: 'Total Clientes', value: clients.length.toString(), icon: Users, color: 'text-primary' }
+  ], [stats, clients.length])
 
   return (
     <div className="space-y-6">
@@ -131,7 +118,7 @@ export default function ReportsPage() {
                 Status de Pagamento
               </CardTitle>
               <CardDescription>
-                Quantidade de clientes por status
+                Quantidade de parcelas por status
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -152,7 +139,7 @@ export default function ReportsPage() {
                       {paymentStatusDistribution.map((entry, index) => (
                         <Cell 
                           key={`cell-${index}`} 
-                          fill={COLORS[entry.status as keyof typeof COLORS] || COLORS.pendente}
+                          fill={COLORS[entry.status as keyof typeof COLORS] || COLORS.pending}
                         />
                       ))}
                     </Pie>
@@ -162,7 +149,7 @@ export default function ReportsPage() {
                         border: '1px solid oklch(0.22 0 0)',
                         borderRadius: '8px'
                       }}
-                      formatter={(value: number) => [`${value} clientes`, 'Quantidade']}
+                      formatter={(value: number) => [`${value} parcelas`, 'Quantidade']}
                     />
                     <Legend />
                   </PieChart>
@@ -183,7 +170,7 @@ export default function ReportsPage() {
                 Receita por Status
               </CardTitle>
               <CardDescription>
-                Receita mensal por status de pagamento
+                Receita por status de pagamento
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -228,7 +215,7 @@ export default function ReportsPage() {
                       {revenueByStatus.map((entry, index) => (
                         <Cell 
                           key={`cell-${index}`} 
-                          fill={COLORS[entry.status as keyof typeof COLORS] || COLORS.pendente}
+                          fill={entry.status === 'paid' ? COLORS.paid : COLORS.pending}
                         />
                       ))}
                     </Bar>
@@ -259,8 +246,8 @@ export default function ReportsPage() {
               <div className="rounded-lg border border-border/30 bg-secondary/30 p-4">
                 <p className="text-sm text-muted-foreground">Taxa de Pagamento</p>
                 <p className="mt-1 text-2xl font-bold text-success">
-                  {stats.totalClients > 0 
-                    ? Math.round((stats.paidClients / stats.totalClients) * 100)
+                  {stats.totalCycles > 0 
+                    ? Math.round((stats.paidCycles / stats.totalCycles) * 100)
                     : 0}%
                 </p>
               </div>
@@ -275,15 +262,15 @@ export default function ReportsPage() {
                 </p>
               </div>
               <div className="rounded-lg border border-border/30 bg-secondary/30 p-4">
-                <p className="text-sm text-muted-foreground">Clientes Pagos</p>
-                <p className="mt-1 text-2xl font-bold text-foreground">
-                  {stats.paidClients}
+                <p className="text-sm text-muted-foreground">Parcelas Pagas</p>
+                <p className="mt-1 text-2xl font-bold text-success">
+                  {stats.paidCycles}
                 </p>
               </div>
               <div className="rounded-lg border border-border/30 bg-secondary/30 p-4">
-                <p className="text-sm text-muted-foreground">Clientes Pendentes</p>
-                <p className="mt-1 text-2xl font-bold text-warning">
-                  {stats.pendingClients}
+                <p className="text-sm text-muted-foreground">Parcelas Vencidas</p>
+                <p className="mt-1 text-2xl font-bold text-destructive">
+                  {stats.overdueCycles}
                 </p>
               </div>
             </div>

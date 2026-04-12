@@ -7,7 +7,6 @@ import Link from 'next/link'
 import { useClients } from '@/contexts/clients-context'
 import { formatCurrency, formatDate } from '@/lib/validation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 
 export function RecentClients() {
@@ -55,16 +54,15 @@ export function RecentClients() {
                     </p>
                   </div>
                 </div>
-                <Badge
-                  variant={client.status === 'pago' ? 'default' : 'destructive'}
-                  className={
-                    client.status === 'pago'
-                      ? 'bg-success/20 text-success hover:bg-success/30'
-                      : 'bg-destructive/20 text-destructive hover:bg-destructive/30'
-                  }
+                <span
+                  className={`text-sm font-medium ${
+                    (client.paidCycles ?? 0) === (client.totalCycles ?? 0) && (client.totalCycles ?? 0) > 0
+                      ? 'text-green-500'
+                      : 'text-muted-foreground'
+                  }`}
                 >
-                  {client.status === 'pago' ? 'Pago' : 'Pendente'}
-                </Badge>
+                  {client.paidCycles ?? 0}/{client.totalCycles ?? 0}
+                </span>
               </div>
             ))}
           </div>

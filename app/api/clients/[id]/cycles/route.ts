@@ -19,7 +19,7 @@ function computeStatus(
     return "paid";
   }
   if (paidAmount > 0) {
-    return isOverdue ? "overdue" : "partial";
+    return "partial"; // ✅ parcial sempre ganha, independente de vencimento
   }
   return isOverdue ? "overdue" : "pending";
 }

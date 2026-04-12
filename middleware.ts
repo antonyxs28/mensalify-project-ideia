@@ -1,5 +1,5 @@
-import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { createServerClient } from "@supabase/ssr";
 
 export async function middleware(request: NextRequest) {
   const response = NextResponse.next({
@@ -34,6 +34,14 @@ export async function middleware(request: NextRequest) {
     request.nextUrl.pathname.startsWith("/login") ||
     request.nextUrl.pathname.startsWith("/register");
 
+  const isProtectedRoute =
+    request.nextUrl.pathname.startsWith("/dashboard") ||
+    request.nextUrl.pathname.startsWith("/api");
+
+  if (isProtectedRoute && !user) {
+    return NextResponse.redirect(new URL("/login", request.url));
+  }
+
   if (isAuthRoute && user) {
     return NextResponse.redirect(new URL("/dashboard", request.url));
   }
@@ -42,5 +50,10 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/login", "/register"],
+  matcher: [
+    "/dashboard/:path*",
+    "/api/:path*",
+    "/login",
+    "/register",
+  ],
 };

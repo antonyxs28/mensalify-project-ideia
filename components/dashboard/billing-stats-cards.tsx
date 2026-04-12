@@ -106,19 +106,19 @@ export function BillingStatsCards() {
     {
       title: 'Total Recebido',
       value: formatCurrency(stats.totalReceived),
-      description: `${stats.paidCycles} ciclos pagos`,
+      description: `${stats.paidCycles} parcelas pagas`,
       icon: DollarSign,
       variant: 'success' as const,
     },
     {
       title: 'Total Esperado',
       value: formatCurrency(stats.totalExpected),
-      description: `${stats.totalCycles} ciclos total`,
+      description: `${stats.totalCycles} parcelas total`,
       icon: Calendar,
       variant: 'default' as const,
     },
     {
-      title: 'Ciclos Vencidos',
+      title: 'Parcelas Vencidas',
       value: stats.overdueCycles.toString(),
       description: 'Pagamentos atrasados',
       icon: AlertTriangle,

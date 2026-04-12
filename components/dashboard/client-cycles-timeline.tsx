@@ -244,7 +244,7 @@ function CycleCard({
         )}
         {creditForNext > 0 && (
           <p className="text-xs text-amber-600 mt-1">
-            Crédito de {formatCurrency(creditForNext)} para próximo ciclo
+            Crédito de {formatCurrency(creditForNext)} para próxima parcela
           </p>
         )}
       </div>
@@ -272,9 +272,9 @@ function EmptyState() {
   return (
     <div className="flex flex-col items-center justify-center py-12 text-center">
       <Calendar className="h-12 w-12 text-muted-foreground mb-4" />
-      <h3 className="text-lg font-medium">Nenhum ciclo de cobrança</h3>
+      <h3 className="text-lg font-medium">Nenhuma parcela de cobrança</h3>
       <p className="text-sm text-muted-foreground mt-1">
-        Os ciclos de cobrança serão criados automaticamente
+        As parcelas de cobrança serão criadas automaticamente
       </p>
     </div>
   );
@@ -405,7 +405,7 @@ function PaymentModal({
             />
           </div>
           <p className="text-sm text-muted-foreground">
-            Total do ciclo: {formatCurrency(cycle.expectedAmount)}
+            Total da parcela: {formatCurrency(cycle.expectedAmount)}
           </p>
           {cycle.paidAmount > 0 && (
             <p className="text-sm text-muted-foreground">
@@ -632,7 +632,7 @@ export function ClientCyclesTimeline({
     return (
       <Card className="border-destructive">
         <CardContent className="pt-6">
-          <p className="text-destructive">Erro ao carregar ciclos: {error}</p>
+          <p className="text-destructive">Erro ao carregar parcelas: {error}</p>
         </CardContent>
       </Card>
     );

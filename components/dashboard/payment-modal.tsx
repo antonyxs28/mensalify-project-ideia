@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 
 const statusConfig = {
   paid: { label: 'Pago', className: 'bg-success/10 text-success border-success/20' },
@@ -67,6 +67,9 @@ export function PaymentModal({ cycle, isOpen, onClose, onSuccess }: PaymentModal
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Registrar Pagamento</DialogTitle>
+          <DialogDescription>
+            Informe o valor do pagamento para {monthNames[cycle.cycle_month - 1]} {cycle.cycle_year}
+          </DialogDescription>
         </DialogHeader>
         
         <div className="space-y-4">
