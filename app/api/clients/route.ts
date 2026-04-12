@@ -7,10 +7,14 @@ import { createClientSchema } from "@/services/clients/types";
 
 export async function GET() {
   try {
-    console.log("[API] GET /clients - Starting");
+    if (process.env.NODE_ENV === 'development') {
+      console.log("[API] GET /clients - Starting");
+    }
 
     const { supabase, userId } = await getAuthenticatedContext();
-    console.log("[API] GET /clients - User ID:", userId);
+    if (process.env.NODE_ENV === 'development') {
+      console.log("[API] GET /clients - User ID:", userId);
+    }
 
     const result = await listClients(supabase, userId);
 
@@ -18,10 +22,12 @@ export async function GET() {
       return NextResponse.json({ error: result.error }, { status: 500 });
     }
 
-    console.log(
-      "[API] GET /clients - Success, count:",
-      result.data?.length || 0,
-    );
+    if (process.env.NODE_ENV === 'development') {
+      console.log(
+        "[API] GET /clients - Success, count:",
+        result.data?.length || 0,
+      );
+    }
     return NextResponse.json({ data: result.data });
   } catch (error) {
     console.error("[API] GET /clients - Error:", error);
@@ -34,10 +40,14 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    console.log("[API] POST /clients - Starting");
+    if (process.env.NODE_ENV === 'development') {
+      console.log("[API] POST /clients - Starting");
+    }
 
     const { supabase, userId } = await getAuthenticatedContext();
-    console.log("[API] POST /clients - User ID:", userId);
+    if (process.env.NODE_ENV === 'development') {
+      console.log("[API] POST /clients - User ID:", userId);
+    }
 
     let body: unknown;
     try {
@@ -52,10 +62,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: errors }, { status: 400 });
     }
 
-    console.log(
-      "[API] POST /clients - Calling createClient with user.id:",
-      userId,
-    );
+    if (process.env.NODE_ENV === 'development') {
+      console.log(
+        "[API] POST /clients - Calling createClient with user.id:",
+        userId,
+      );
+    }
     const result = await createClient({
       supabase,
       userId,
@@ -66,7 +78,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: result.error }, { status: 400 });
     }
 
-    console.log("[API] POST /clients - Success, id:", result.data?.id);
+    if (process.env.NODE_ENV === 'development') {
+      console.log("[API] POST /clients - Success, id:", result.data?.id);
+    }
     return NextResponse.json({ data: result.data }, { status: 201 });
   } catch (error) {
     console.error("[API] POST /clients - Error:", error);

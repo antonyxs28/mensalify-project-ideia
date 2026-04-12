@@ -22,7 +22,7 @@ interface ClientWithStatus extends Client {
 const computeCycleStatus = (
   paidAmount: number,
   expectedAmount: number,
-  dueDate: string
+  dueDate: string,
 ): "paid" | "partial" | "overdue" | "pending" => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -87,7 +87,14 @@ export function useClients() {
 
       if (clients.length === 0) {
         setClients([]);
-        setChartData(generateLastNMonths(6).map(m => ({ month: m, monthKey: m, received: 0, expected: 0 })));
+        setChartData(
+          generateLastNMonths(6).map((m) => ({
+            month: m,
+            monthKey: m,
+            received: 0,
+            expected: 0,
+          })),
+        );
         setIsLoading(false);
         return;
       }
@@ -97,16 +104,24 @@ export function useClients() {
 
       const { data: allCycles, error: cyclesError } = await supabase
         .from("billing_cycles")
-        .select("client_id, cycle_year, cycle_month, paid_amount, expected_amount, due_date")
+        .select(
+          "client_id, cycle_year, cycle_month, paid_amount, expected_amount, due_date",
+        )
         .in("client_id", clientIds);
 
       if (cyclesError) {
-        console.error("[useClients] fetchCycles error:", cyclesError);
+        if (process.env.NODE_ENV === "development") {
+          console.error("[useClients] fetchCycles error:", cyclesError);
+        }
       }
 
-      const computedCycles = (allCycles || []).map(cycle => ({
+      const computedCycles = (allCycles || []).map((cycle) => ({
         ...cycle,
-        status: computeCycleStatus(cycle.paid_amount, cycle.expected_amount, cycle.due_date),
+        status: computeCycleStatus(
+          cycle.paid_amount,
+          cycle.expected_amount,
+          cycle.due_date,
+        ),
       }));
 
       const cyclesByClient = computedCycles.reduce(
@@ -123,27 +138,45 @@ export function useClients() {
         {},
       );
 
-      const chartDataMap = computedCycles.reduce<Record<string, ChartData>>((acc, cycle) => {
-        const monthKey = `${cycle.cycle_year}-${String(cycle.cycle_month).padStart(2, "0")}`;
-        if (!acc[monthKey]) {
-          acc[monthKey] = { month: monthKey, monthKey, received: 0, expected: 0 };
-        }
-        acc[monthKey].expected += Number(cycle.expected_amount) || 0;
-        acc[monthKey].received += Number(cycle.paid_amount) || 0;
-        return acc;
-      }, {});
+      const chartDataMap = computedCycles.reduce<Record<string, ChartData>>(
+        (acc, cycle) => {
+          const monthKey = `${cycle.cycle_year}-${String(cycle.cycle_month).padStart(2, "0")}`;
+          if (!acc[monthKey]) {
+            acc[monthKey] = {
+              month: monthKey,
+              monthKey,
+              received: 0,
+              expected: 0,
+            };
+          }
+          acc[monthKey].expected += Number(cycle.expected_amount) || 0;
+          acc[monthKey].received += Number(cycle.paid_amount) || 0;
+          return acc;
+        },
+        {},
+      );
 
       const last6Months = generateLastNMonths(6);
-      const newChartData = last6Months.map(monthKey => {
+      const allCycleMonths = computedCycles.map(
+        (cycle) =>
+          `${cycle.cycle_year}-${String(cycle.cycle_month).padStart(2, "0")}`,
+      );
+      const allMonths = [
+        ...new Set([...last6Months, ...allCycleMonths]),
+      ].sort();
+      const newChartData = allMonths.map((monthKey) => {
         const existing = chartDataMap[monthKey];
-        return existing || { month: monthKey, monthKey, received: 0, expected: 0 };
+        return (
+          existing || { month: monthKey, monthKey, received: 0, expected: 0 }
+        );
       });
 
       setChartData(newChartData);
 
       const clientsWithStatus: ClientWithStatus[] = clients.map((client) => {
         const clientCycles = cyclesByClient[client.id] || { total: 0, paid: 0 };
-        const isAllPaid = clientCycles.total > 0 && clientCycles.paid === clientCycles.total;
+        const isAllPaid =
+          clientCycles.total > 0 && clientCycles.paid === clientCycles.total;
         return {
           ...client,
           status: isAllPaid ? "pago" : "pendente",
@@ -157,7 +190,9 @@ export function useClients() {
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Failed to load clients";
-      console.error("[useClients] fetchClients error:", message);
+      if (process.env.NODE_ENV === "development") {
+        console.error("[useClients] fetchClients error:", message);
+      }
       setError(message);
       setClients([]);
     } finally {
@@ -187,7 +222,9 @@ export function useClients() {
       } catch (err) {
         const message =
           err instanceof Error ? err.message : "Failed to create client";
-        console.error("[useClients] addClient error:", message);
+        if (process.env.NODE_ENV === "development") {
+          console.error("[useClients] addClient error:", message);
+        }
         return { success: false, error: message };
       }
     },
@@ -205,7 +242,9 @@ export function useClients() {
       } catch (err) {
         const message =
           err instanceof Error ? err.message : "Failed to update client";
-        console.error("[useClients] updateClient error:", message);
+        if (process.env.NODE_ENV === "development") {
+          console.error("[useClients] updateClient error:", message);
+        }
         return { success: false, error: message };
       }
     },
@@ -221,7 +260,9 @@ export function useClients() {
       } catch (err) {
         const message =
           err instanceof Error ? err.message : "Failed to delete client";
-        console.error("[useClients] deleteClient error:", message);
+        if (process.env.NODE_ENV === "development") {
+          console.error("[useClients] deleteClient error:", message);
+        }
         return { success: false, error: message };
       }
     },
@@ -259,13 +300,20 @@ export function useClients() {
         }
 
         const result = await response.json();
-        console.log("[useClients] markAsPaid success:", result.data?.cycle?.id);
+        if (process.env.NODE_ENV === "development") {
+          console.log(
+            "[useClients] markAsPaid success:",
+            result.data?.cycle?.id,
+          );
+        }
         await fetchClients();
         return { success: true };
       } catch (err) {
         const message =
           err instanceof Error ? err.message : "Failed to mark as paid";
-        console.error("[useClients] markAsPaid error:", message);
+        if (process.env.NODE_ENV === "development") {
+          console.error("[useClients] markAsPaid error:", message);
+        }
         return { success: false, error: message };
       }
     },

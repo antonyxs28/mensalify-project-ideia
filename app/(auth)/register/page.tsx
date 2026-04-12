@@ -92,8 +92,8 @@ export default function RegisterPage() {
       )
       
       if (result.success) {
-        toast.success('Conta criada com sucesso!')
-        router.push('/dashboard')
+        toast.success('Conta criada! Verifique seu email para confirmar.')
+        router.push(`/confirm-email?email=${encodeURIComponent(email)}`)
       } else {
         const errorMessage = result.error?.includes('already registered')
           ? 'Este email já está cadastrado'

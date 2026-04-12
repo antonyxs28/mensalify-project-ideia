@@ -7,6 +7,23 @@ export interface User {
   createdAt?: Date
 }
 
+export interface AuthResult {
+  success: boolean
+  error?: string
+  user?: User
+}
+
+export interface AuthService {
+  login: (email: string, password: string) => Promise<AuthResult>
+  register: (name: string, email: string, password: string) => Promise<AuthResult>
+  logout: () => Promise<void>
+  getSession: () => Promise<User | null>
+  getCurrentUser: () => Promise<User | null>
+  updateProfile: (userId: string, name: string) => Promise<AuthResult>
+  resendConfirmation: (email: string) => Promise<AuthResult>
+  subscribeToAuthChanges: (callback: (user: User | null) => void) => () => void
+}
+
 export interface AuthState {
   user: User | null
   isAuthenticated: boolean

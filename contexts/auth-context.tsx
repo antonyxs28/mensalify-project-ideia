@@ -35,6 +35,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const setAuthenticated = useCallback((user: User) => {
+    console.debug('[Auth] Setting authenticated:', user.email)
     stopLoading()
     setState({
       user,
@@ -58,7 +59,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const initAuth = async () => {
       timeoutRef.current = setTimeout(() => {
-        console.warn('Auth initialization timeout - forcing stop loading')
+        console.debug('Auth initialization timeout - forcing stop loading')
         setUnauthenticated()
       }, AUTH_TIMEOUT_MS)
 

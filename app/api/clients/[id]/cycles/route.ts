@@ -27,20 +27,28 @@ function computeStatus(
 export async function GET(req: Request, { params }: RouteParams) {
   try {
     const { id: clientId } = await params;
-    console.log("[API] GET /clients/[id]/cycles - clientId:", clientId);
+    if (process.env.NODE_ENV === 'development') {
+      console.log("[API] GET /clients/[id]/cycles - clientId:", clientId);
+    }
 
     const { supabase, userId } = await getAuthenticatedContext();
-    console.log("[API] User ID:", userId);
+    if (process.env.NODE_ENV === 'development') {
+      console.log("[API] User ID:", userId);
+    }
 
     const clientResult = await getClient(supabase, userId, clientId);
-    console.log("[API] Client result:", clientResult);
+    if (process.env.NODE_ENV === 'development') {
+      console.log("[API] Client result:", clientResult);
+    }
 
     if (!clientResult.success || !clientResult.data) {
       return NextResponse.json({ error: "Client not found" }, { status: 404 });
     }
 
     try {
-      console.log("[API] Query billing_cycles for client_id:", clientId);
+      if (process.env.NODE_ENV === 'development') {
+        console.log("[API] Query billing_cycles for client_id:", clientId);
+      }
 
       const { data: cycles, error: cyclesError } = await supabase
         .from("billing_cycles")
@@ -49,10 +57,12 @@ export async function GET(req: Request, { params }: RouteParams) {
         .order("cycle_year", { ascending: true })
         .order("cycle_month", { ascending: true });
 
-      console.log("[API] billing_cycles result:", {
-        count: cycles?.length,
-        error: cyclesError,
-      });
+      if (process.env.NODE_ENV === 'development') {
+        console.log("[API] billing_cycles result:", {
+          count: cycles?.length,
+          error: cyclesError,
+        });
+      }
 
       if (cyclesError) {
         console.warn("[API] billing_cycles query error:", cyclesError.message);
@@ -63,10 +73,12 @@ export async function GET(req: Request, { params }: RouteParams) {
       }
 
       if (cycles && cycles.length > 0) {
-        console.log(
-          "[API] Returning cycles from billing_cycles table:",
-          cycles.length,
-        );
+        if (process.env.NODE_ENV === 'development') {
+          console.log(
+            "[API] Returning cycles from billing_cycles table:",
+            cycles.length,
+          );
+        }
 
         const processedCycles = cycles.map((cycle: any) => ({
           ...cycle,
@@ -80,24 +92,28 @@ export async function GET(req: Request, { params }: RouteParams) {
           ),
         }));
 
-        console.log(
-          "[API] DEBUG - Processed cycles:",
-          processedCycles.map((c: any) => ({
-            id: c.id,
-            year: c.cycle_year,
-            month: c.cycle_month,
-            paid_amount: c.paid_amount,
-            expected_amount: c.expected_amount,
-            status: c.status,
-          })),
-        );
+        if (process.env.NODE_ENV === 'development') {
+          console.log(
+            "[API] DEBUG - Processed cycles:",
+            processedCycles.map((c: any) => ({
+              id: c.id,
+              year: c.cycle_year,
+              month: c.cycle_month,
+              paid_amount: c.paid_amount,
+              expected_amount: c.expected_amount,
+              status: c.status,
+            })),
+          );
+        }
 
         return NextResponse.json({ data: processedCycles });
       }
 
-      console.log(
-        "[API] No cycles in billing_cycles table - returning empty array",
-      );
+      if (process.env.NODE_ENV === 'development') {
+        console.log(
+          "[API] No cycles in billing_cycles table - returning empty array",
+        );
+      }
       return NextResponse.json({ data: [] });
     } catch (cycleError) {
       console.error("[API] billing_cycles error:", cycleError);
@@ -117,7 +133,9 @@ export async function GET(req: Request, { params }: RouteParams) {
 export async function POST(req: Request, { params }: RouteParams) {
   try {
     const { id: clientId } = await params;
-    console.log("[API] POST /clients/[id]/cycles - clientId:", clientId);
+    if (process.env.NODE_ENV === 'development') {
+      console.log("[API] POST /clients/[id]/cycles - clientId:", clientId);
+    }
 
     const { supabase, userId } = await getAuthenticatedContext();
 

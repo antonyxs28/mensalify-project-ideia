@@ -55,10 +55,10 @@ export function isStrongPassword(password: string): { isValid: boolean; errors: 
 }
 
 /**
- * Validate name (minimum 2 characters, only letters and spaces)
+ * Validate name (minimum 2 characters, letters, spaces, accents and common special chars)
  */
 export function isValidName(name: string): boolean {
-  return name.length >= 2 && /^[a-zA-ZÀ-ÿ\s]+$/.test(name)
+  return name.length >= 2 && /^[\p{L}\s'-]+$/u.test(name.trim())
 }
 
 /**
