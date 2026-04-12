@@ -16,6 +16,8 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { FieldGroup, Field, FieldLabel, FieldError } from '@/components/ui/field'
 
 export default function LoginPage() {
+  const { login } = useAuth()
+  
   const router = useRouter()
   const { isAuthenticated, isLoading: authLoading } = useAuth()
   
@@ -58,8 +60,13 @@ export default function LoginPage() {
     setErrors({})
     
     try {
-      const result = await authService.login(sanitizeInput(email) || '', password)
-      
+      const result = await login(sanitizeInput(email) || '', password)
+
+    if (result.success) {
+      toast.success('Login realizado com sucesso!')
+      // não precisa do router.push — o useEffect já redireciona quando isAuthenticated muda
+    }
+          
       if (result.success) {
         toast.success('Login realizado com sucesso!')
         await new Promise(resolve => setTimeout(resolve, 100))
