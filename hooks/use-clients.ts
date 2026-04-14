@@ -1,16 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import type {
-  Client,
-  ClientFormData,
-  DashboardStats,
-  ChartData,
-  PaymentStatus,
-} from "@/lib/types";
-import { supabase } from "@/lib/supabase/client";
-import * as clientsService from "@/services/clients.service";
-import { generateLastNMonths } from "@/lib/utils";
+import type { Client, ClientFormData, DashboardStats, ChartData, PaymentStatus } from "@/lib/types";
+import { generateLastNMonths, computeCycleStatus } from "@/lib/utils";
 
 interface ClientWithStatus extends Client {
   status: PaymentStatus;
@@ -19,26 +11,6 @@ interface ClientWithStatus extends Client {
   totalCycles: number;
 }
 
-const computeCycleStatus = (
-  paidAmount: number,
-  expectedAmount: number,
-  dueDate: string,
-): "paid" | "partial" | "overdue" | "pending" => {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const due = new Date(dueDate);
-  due.setHours(0, 0, 0, 0);
-  const isOverdue = today > due;
-
-  if (paidAmount >= expectedAmount) {
-    return "paid";
-  }
-  if (paidAmount > 0) {
-    return isOverdue ? "overdue" : "partial";
-  }
-  return isOverdue ? "overdue" : "pending";
-};
-
 const getMonthKey = (date: Date = new Date()): string => {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -46,9 +18,9 @@ const getMonthKey = (date: Date = new Date()): string => {
 };
 
 async function getClientAuthHeaders(): Promise<HeadersInit> {
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
+  const response = await fetch('/api/auth/session', { credentials: 'include' });
+  const data = await response.json();
+  const session = data.session;
 
   const headers: HeadersInit = {
     "Content-Type": "application/json",
@@ -83,7 +55,18 @@ export function useClients() {
       setIsLoading(true);
       setError(null);
 
-      const clients = await clientsService.fetchClients();
+      const headers = await getClientAuthHeaders();
+      const response = await fetch('/api/clients', {
+        headers,
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch clients');
+      }
+
+      const result = await response.json();
+      const clients: Client[] = result.data || [];
 
       if (clients.length === 0) {
         setClients([]);
@@ -102,17 +85,17 @@ export function useClients() {
       const clientIds = clients.map((c) => c.id);
       const currentMonthKey = getMonthKey();
 
-      const { data: allCycles, error: cyclesError } = await supabase
-        .from("billing_cycles")
-        .select(
-          "client_id, cycle_year, cycle_month, paid_amount, expected_amount, due_date",
-        )
-        .in("client_id", clientIds);
+      const cyclesResponse = await fetch(`/api/cycles/bulk?clientIds=${clientIds.join(',')}`, {
+        headers,
+        credentials: 'include',
+      });
 
-      if (cyclesError) {
-        if (process.env.NODE_ENV === "development") {
-          console.error("[useClients] fetchCycles error:", cyclesError);
-        }
+      let allCycles: any[] = [];
+      if (cyclesResponse.ok) {
+        const cyclesResult = await cyclesResponse.json();
+        allCycles = cyclesResult.data || [];
+      } else if (process.env.NODE_ENV === "development") {
+        console.error("[useClients] fetchCycles error: API request failed");
       }
 
       const computedCycles = (allCycles || []).map((cycle) => ({
@@ -209,15 +192,27 @@ export function useClients() {
       data: ClientFormData,
     ): Promise<{ success: boolean; error?: string }> => {
       try {
-        await clientsService.createClient({
-          name: data.name,
-          email: data.email,
-          phone: data.phone,
-          monthly_price: data.monthly_price,
-          due_day: data.due_day,
-          billing_type: data.billing_type,
-          number_of_cycles: data.number_of_cycles,
+        const headers = await getClientAuthHeaders();
+        const response = await fetch('/api/clients', {
+          method: 'POST',
+          headers,
+          credentials: 'include',
+          body: JSON.stringify({
+            name: data.name,
+            email: data.email,
+            phone: data.phone,
+            monthly_price: data.monthly_price,
+            due_day: data.due_day,
+            billing_type: data.billing_type,
+            number_of_cycles: data.number_of_cycles,
+          }),
         });
+
+        if (!response.ok) {
+          const error = await safeJsonParse(response);
+          throw new Error(error.error || 'Failed to create client');
+        }
+
         return { success: true };
       } catch (err) {
         const message =
@@ -237,7 +232,28 @@ export function useClients() {
       data: Partial<ClientFormData>,
     ): Promise<{ success: boolean; error?: string }> => {
       try {
-        await clientsService.updateClient(id, data);
+        const headers = await getClientAuthHeaders();
+        const response = await fetch(`/api/clients/${id}`, {
+          method: 'PUT',
+          headers,
+          credentials: 'include',
+          body: JSON.stringify({
+            name: data.name,
+            email: data.email,
+            phone: data.phone,
+            monthly_price: data.monthly_price,
+            due_day: data.due_day,
+            billing_type: data.billing_type,
+            number_of_cycles: data.number_of_cycles,
+            total_installments: Number(data.number_of_cycles) || null,
+          }),
+        });
+
+        if (!response.ok) {
+          const error = await safeJsonParse(response);
+          throw new Error(error.error || 'Failed to update client');
+        }
+
         return { success: true };
       } catch (err) {
         const message =
@@ -254,7 +270,18 @@ export function useClients() {
   const deleteClient = useCallback(
     async (id: string): Promise<{ success: boolean; error?: string }> => {
       try {
-        await clientsService.deleteClient(id);
+        const headers = await getClientAuthHeaders();
+        const response = await fetch(`/api/clients/${id}`, {
+          method: 'DELETE',
+          headers,
+          credentials: 'include',
+        });
+
+        if (!response.ok) {
+          const error = await safeJsonParse(response);
+          throw new Error(error.error || 'Failed to delete client');
+        }
+
         await fetchClients();
         return { success: true };
       } catch (err) {
@@ -274,36 +301,45 @@ export function useClients() {
       try {
         const headers = await getClientAuthHeaders();
 
-        const { data: cycles } = await supabase
-          .from("billing_cycles")
-          .select("id")
-          .eq("client_id", id)
-          .order("cycle_year", { ascending: false })
-          .order("cycle_month", { ascending: false })
-          .limit(1);
+        const response = await fetch(`/api/clients/${id}/cycles`, {
+          headers,
+          credentials: 'include',
+        });
 
-        const cycleId = cycles?.[0]?.id;
+        if (!response.ok) {
+          throw new Error('Failed to fetch cycles');
+        }
+
+        const result = await response.json();
+        const cycles = result.data || [];
+        
+        const latestCycle = cycles.sort((a: any, b: any) => {
+          if (a.cycle_year !== b.cycle_year) return b.cycle_year - a.cycle_year;
+          return b.cycle_month - a.cycle_month;
+        })[0];
+
+        const cycleId = latestCycle?.id;
         if (!cycleId) {
           return { success: false, error: "No billing cycle found for client" };
         }
 
-        const response = await fetch(`/api/cycles/${cycleId}/pay`, {
+        const payResponse = await fetch(`/api/cycles/${cycleId}/pay`, {
           method: "POST",
           headers,
           credentials: "include",
           body: JSON.stringify({ amount: 0 }),
         });
 
-        if (!response.ok) {
-          const error = await safeJsonParse(response);
+        if (!payResponse.ok) {
+          const error = await safeJsonParse(payResponse);
           throw new Error(error.error || "Failed to mark as paid");
         }
 
-        const result = await response.json();
+        const payResult = await payResponse.json();
         if (process.env.NODE_ENV === "development") {
           console.log(
             "[useClients] markAsPaid success:",
-            result.data?.cycle?.id,
+            payResult.data?.cycle?.id,
           );
         }
         await fetchClients();
