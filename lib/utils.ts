@@ -5,6 +5,12 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+export function logDev(...args: unknown[]): void {
+  if (process.env.NODE_ENV === 'development') {
+    console.log(...args)
+  }
+}
+
 interface RevenueItem {
   date: string
   amount: number

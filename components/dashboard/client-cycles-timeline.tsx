@@ -450,12 +450,14 @@ export function ClientCyclesTimeline({
   monthlyPrice,
   dueDay = 5,
   clientCreatedAt,
+  totalInstallments,
 }: {
   clientId: string;
   clientName: string;
   monthlyPrice: number;
   dueDay?: number;
   clientCreatedAt?: string;
+  totalInstallments?: number;
 }) {
   const {
     cycles: dbCycles,
@@ -463,6 +465,9 @@ export function ClientCyclesTimeline({
     error,
     refetch,
   } = useClientCycles(clientId);
+  
+  console.log('[TRACE] ClientCyclesTimeline - dbCycles from API:', dbCycles?.length);
+  
   const { addPayment, isLoading: isAddingPayment } = useAddPayment();
   const [selectedCycle, setSelectedCycle] =
     useState<NormalizedBillingCycle | null>(null);
@@ -474,14 +479,22 @@ export function ClientCyclesTimeline({
 
   const clientInfo = useMemo((): ClientBillingInfo | null => {
     if (!clientCreatedAt) return null;
+    console.log('[TRACE] ClientCyclesTimeline - creating clientInfo', {
+      clientId,
+      clientCreatedAt,
+      monthlyPrice,
+      dueDay,
+      totalInstallments
+    });
     return {
       id: clientId,
       created_at: clientCreatedAt,
       monthly_price: monthlyPrice,
       due_day: dueDay,
       billing_type: 'recurring',
+      total_installments: totalInstallments,
     };
-  }, [clientId, clientCreatedAt, monthlyPrice, dueDay]);
+  }, [clientId, clientCreatedAt, monthlyPrice, dueDay, totalInstallments]);
 
   useEffect(() => {
     console.log('[ClientCyclesTimeline] useEffect - dbCycles:', dbCycles?.length);

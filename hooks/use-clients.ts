@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import type { Client, ClientFormData, DashboardStats, ChartData, PaymentStatus } from "@/lib/types";
-import { generateLastNMonths, computeCycleStatus } from "@/lib/utils";
+import { generateLastNMonths, computeCycleStatus, logDev } from "@/lib/utils";
 
 interface ClientWithStatus extends Client {
   status: PaymentStatus;
@@ -204,7 +204,8 @@ export function useClients() {
             monthly_price: data.monthly_price,
             due_day: data.due_day,
             billing_type: data.billing_type,
-            number_of_cycles: data.number_of_cycles,
+            number_of_cycles: data.number_of_cycles ? parseInt(String(data.number_of_cycles), 10) : null,
+            total_installments: data.number_of_cycles ? parseInt(String(data.number_of_cycles), 10) : null,
           }),
         });
 
@@ -244,8 +245,8 @@ export function useClients() {
             monthly_price: data.monthly_price,
             due_day: data.due_day,
             billing_type: data.billing_type,
-            number_of_cycles: data.number_of_cycles,
-            total_installments: Number(data.number_of_cycles) || null,
+            number_of_cycles: data.number_of_cycles ? parseInt(String(data.number_of_cycles), 10) : null,
+            total_installments: data.number_of_cycles ? parseInt(String(data.number_of_cycles), 10) : null,
           }),
         });
 
@@ -254,6 +255,7 @@ export function useClients() {
           throw new Error(error.error || 'Failed to update client');
         }
 
+        await fetchClients();
         return { success: true };
       } catch (err) {
         const message =
@@ -264,7 +266,7 @@ export function useClients() {
         return { success: false, error: message };
       }
     },
-    [],
+    [fetchClients],
   );
 
   const deleteClient = useCallback(
@@ -336,12 +338,7 @@ export function useClients() {
         }
 
         const payResult = await payResponse.json();
-        if (process.env.NODE_ENV === "development") {
-          console.log(
-            "[useClients] markAsPaid success:",
-            payResult.data?.cycle?.id,
-          );
-        }
+        logDev("[useClients] markAsPaid success:", payResult.data?.cycle?.id);
         await fetchClients();
         return { success: true };
       } catch (err) {

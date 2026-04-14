@@ -1,14 +1,13 @@
 import { type SupabaseClient } from "@supabase/supabase-js";
 import { Client, ServiceResult } from "./types";
+import { logDev } from "@/lib/utils";
 
 export async function getClient(
   supabase: SupabaseClient,
   userId: string,
   clientId: string,
 ): Promise<ServiceResult<Client>> {
-  if (process.env.NODE_ENV === 'development') {
-    console.log("[DEBUG] getClient - clientId:", clientId, "userId:", userId);
-  }
+  logDev("[DEBUG] getClient - clientId:", clientId, "userId:", userId);
 
   const { data, error } = await supabase
     .from("clients")
@@ -22,8 +21,6 @@ export async function getClient(
     return { success: false, error: `Client not found: ${error.message}` };
   }
 
-  if (process.env.NODE_ENV === 'development') {
-    console.log("[DB] getClient - Result:", JSON.stringify(data));
-  }
+  logDev("[DB] getClient - Result:", JSON.stringify(data));
   return { success: true, data };
 }

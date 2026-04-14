@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { type BillingCycle, type BillingPayment } from "@/lib/types";
+import { logDev } from "@/lib/utils";
 
 export { BillingCycle, BillingPayment };
 
@@ -20,6 +21,16 @@ async function getClientAuthHeaders(): Promise<HeadersInit> {
   }
 
   return headers;
+}
+
+async function safeJsonParse(response: Response): Promise<{ error?: string }> {
+  try {
+    const text = await response.text();
+    if (!text) return {};
+    return JSON.parse(text);
+  } catch {
+    return { error: `Non-JSON response: ${response.status}` };
+  }
 }
 
 export interface BillingStats {
@@ -92,31 +103,18 @@ export function useClientCycles(clientId: string) {
       setError(null);
 
       const headers = await getClientAuthHeaders();
-      if (process.env.NODE_ENV === 'development') {
-        console.log("[useClientCycles] Fetching cycles for clientId:", clientId);
-      }
-      
-      const response = await fetch(`/api/clients/${clientId}/cycles`, {
+      const res = await fetch(`/api/clients/${clientId}/cycles`, {
+        method: "GET",
         headers,
         credentials: "include",
       });
-
-      if (process.env.NODE_ENV === 'development') {
-        console.log("[useClientCycles] Response status:", response.status);
-      }
-
-      if (!response.ok) {
-        const text = await response.text();
-        console.error("[useClientCycles] Error response:", text);
-        throw new Error(text || "Failed to fetch cycles");
-      }
-
-      const result = await response.json();
-      if (process.env.NODE_ENV === 'development') {
-        console.log("[useClientCycles] Raw result:", result);
-        console.log("[useClientCycles] Cycles data:", result.data);
-      }
-      setCycles(result.data || []);
+      const data = await res.json();
+      
+      logDev("[useClientCycles] Fetching cycles for clientId:", clientId);
+      logDev("[useClientCycles] Response status:", res.status);
+      logDev("[useClientCycles] Cycles data:", data.data);
+      
+      setCycles(data.data || []);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to load cycles";
       console.error("[useClientCycles] Catch error:", message);

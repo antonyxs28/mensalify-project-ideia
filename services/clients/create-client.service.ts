@@ -1,24 +1,8 @@
 import { type SupabaseClient } from "@supabase/supabase-js";
 import { type Client, type ServiceResult, type ClientBillingInfo } from "@/lib/types";
 import { type CreateClientData } from "./types";
-
-function buildLocalDate(year: number, month: number, day: number): Date {
-  return new Date(year, month - 1, day, 12, 0, 0, 0);
-}
-
-function formatLocalDate(date: Date): string {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(
-    date.getDate(),
-  ).padStart(2, "0")}`;
-}
-
-function getValidDueDate(year: number, month: number, dueDay: number): Date {
-  const candidate = buildLocalDate(year, month, dueDay);
-  if (candidate.getMonth() !== month - 1) {
-    return buildLocalDate(year, month + 1, 0);
-  }
-  return candidate;
-}
+import { buildLocalDate, formatLocalDate, getValidDueDate } from "@/lib/utils/date";
+import { logDev } from "@/lib/utils";
 
 function parseClientBaseDate(createdAt?: string | null): Date {
   if (!createdAt) {
@@ -50,8 +34,18 @@ export async function rebuildClientBillingCycles(
 ): Promise<ServiceResult<{ rebuilt: number }>> {
   const dueDay = Number(client.due_day || 5);
   const billingType = client.billing_type || "monthly";
-  const totalInstallments =
-    client.total_installments || client.number_of_cycles || 1;
+  
+  const isInstallment = !!(client.total_installments && client.total_installments > 0);
+  const totalInstallments = isInstallment 
+    ? (client.total_installments as number) 
+    : (client.number_of_cycles ?? 1);
+  
+  console.log('[CYCLES CHECK] rebuildClientBillingCycles', {
+    total_installments: client.total_installments,
+    number_of_cycles: client.number_of_cycles,
+    isInstallment,
+    totalInstallments
+  });
 
   const cycles = [];
   let currentDueDate = getFirstDueDate(dueDay, client.created_at);
@@ -186,8 +180,18 @@ export async function createClient({
     insertData.billing_type = data.billing_type;
   }
 
-  const totalInstallments =
-    data.total_installments || data.number_of_cycles || 1;
+  const isInstallment = !!(data.total_installments && data.total_installments > 0);
+  const totalInstallments = isInstallment 
+    ? (data.total_installments as number) 
+    : (data.number_of_cycles ?? 1);
+  
+  console.log('[CYCLES CHECK] createClient', {
+    total_installments: data.total_installments,
+    number_of_cycles: data.number_of_cycles,
+    isInstallment,
+    totalInstallments
+  });
+  
   const billingType = data.billing_type || "monthly";
 
   if (data.total_installments) {
@@ -201,9 +205,7 @@ export async function createClient({
 
   insertData.billing_type = billingType;
 
-  if (process.env.NODE_ENV === 'development') {
-    console.log("[DEBUG] Insert data:", JSON.stringify(insertData));
-  }
+  logDev("[DEBUG] Insert data:", JSON.stringify(insertData));
 
   const { data: result, error } = await supabase
     .from("clients")
@@ -211,16 +213,8 @@ export async function createClient({
     .select()
     .single();
 
-  if (process.env.NODE_ENV === 'development') {
-    console.log(
-      "[DEBUG] Supabase insert result:",
-      result ? JSON.stringify(result) : "null",
-    );
-    console.log(
-      "[DEBUG] Supabase insert error:",
-      error ? JSON.stringify(error) : "null",
-    );
-  }
+  logDev("[DEBUG] Supabase insert result:", result ? JSON.stringify(result) : "null");
+  logDev("[DEBUG] Supabase insert error:", error ? JSON.stringify(error) : "null");
 
   if (error) {
     console.error("[DB] createClient - Full error:", JSON.stringify(error));
@@ -231,13 +225,16 @@ export async function createClient({
     };
   }
 
-  if (process.env.NODE_ENV === 'development') {
-    console.log("[DB] createClient - Result:", JSON.stringify(result));
-  }
+  logDev("[DB] createClient - Result:", JSON.stringify(result));
 
   if (result && totalInstallments > 0) {
     const dueDay = (insertData.due_day as number) || 5;
     const billingTypeName = (insertData.billing_type as string) || "monthly";
+
+    console.log('[CYCLES CHECK] createClient creating cycles', {
+      totalInstallments,
+      billingTypeName
+    });
 
     const cycles = [];
     let currentDueDate = getFirstDueDate(dueDay, result.created_at);
@@ -304,7 +301,25 @@ export async function createClient({
         .upsert(cycles, { onConflict: "client_id,cycle_year,cycle_month" });
 
       if (cyclesError) {
-        console.warn("[DB] Failed to create cycles:", cyclesError.message);
+        console.error("[DB] Failed to create cycles, rolling back client:", cyclesError.message);
+
+        const { error: deleteError } = await supabase
+          .from("clients")
+          .delete()
+          .eq("id", result.id);
+
+        if (deleteError) {
+          console.error("[DB] Critical: Failed to rollback client creation:", deleteError);
+          return {
+            success: false,
+            error: `Critical: Failed to create billing cycles and rollback failed. Manual cleanup required. Original error: ${cyclesError.message}`,
+          };
+        }
+
+        return {
+          success: false,
+          error: `Failed to create billing cycles: ${cyclesError.message}. Client creation has been rolled back.`,
+        };
       }
     }
   }

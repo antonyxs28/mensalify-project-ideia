@@ -1,6 +1,7 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import type { BillingCycle, ServiceResult, ClientBillingInfo } from "@/lib/types";
 import { computeCycleStatus } from "@/lib/utils";
+import { buildLocalDate, formatLocalDate } from "@/lib/utils/date";
 
 interface ClientWithActive {
   id: string;
@@ -16,16 +17,6 @@ interface PaymentRecord {
   billing_cycle_id: string | null;
   paid_at: string | null;
   created_at: string;
-}
-
-function buildLocalDate(year: number, month: number, day: number): Date {
-  return new Date(year, month - 1, day, 12, 0, 0, 0);
-}
-
-function formatLocalDate(date: Date): string {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(
-    date.getDate(),
-  ).padStart(2, "0")}`;
 }
 
 export function calculateCycleStatus(

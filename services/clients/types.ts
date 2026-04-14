@@ -24,8 +24,8 @@ export const createClientSchema = z.object({
   }, "Price must be a positive number"),
   due_day: z.number().int().min(1).max(31).optional(),
   billing_type: z.enum(["monthly", "weekly", "yearly"]).optional(),
-  total_installments: z.number().int().min(1).optional(),
-  number_of_cycles: z.number().int().min(1).nullable().optional(),
+  total_installments: z.number().int().min(1).max(120).optional(),
+  number_of_cycles: z.number().int().min(1).max(120).nullable().optional(),
 });
 
 export type CreateClientInput = z.infer<typeof createClientSchema>;

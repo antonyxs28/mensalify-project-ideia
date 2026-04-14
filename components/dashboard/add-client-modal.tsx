@@ -121,8 +121,10 @@ export function AddClientModal({ isOpen, onClose, onSuccess, editingClient }: Ad
     const cyclesNumber = parseInt(numberOfCycles, 10)
     if (!numberOfCycles.trim()) {
       newErrors.numberOfCycles = 'O número de parcelas é obrigatório'
-    } else if (isNaN(cyclesNumber) || cyclesNumber <= 0) {
+    } else if (isNaN(cyclesNumber) || cyclesNumber < 1) {
       newErrors.numberOfCycles = 'O número de parcelas deve ser maior que zero'
+    } else if (cyclesNumber > 120) {
+      newErrors.numberOfCycles = 'Máximo de 120 parcelas (10 anos)'
     }
     
     setErrors(newErrors)

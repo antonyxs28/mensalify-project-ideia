@@ -1,5 +1,6 @@
 import { type SupabaseClient } from "@supabase/supabase-js";
 import { ServiceResult } from "./types";
+import { logDev } from "@/lib/utils";
 
 interface DeleteClientParams {
   supabase: SupabaseClient;
@@ -12,14 +13,7 @@ export async function deleteClient({
   userId,
   clientId,
 }: DeleteClientParams): Promise<ServiceResult<void>> {
-  if (process.env.NODE_ENV === 'development') {
-    console.log(
-      "[DEBUG] deleteClient - clientId:",
-      clientId,
-      "userId:",
-      userId,
-    );
-  }
+  logDev("[DEBUG] deleteClient - clientId:", clientId, "userId:", userId);
 
   const { error } = await supabase
     .from("clients")
@@ -35,8 +29,6 @@ export async function deleteClient({
     };
   }
 
-  if (process.env.NODE_ENV === 'development') {
-    console.log("[DB] deleteClient - Success");
-  }
+  logDev("[DB] deleteClient - Success");
   return { success: true };
 }

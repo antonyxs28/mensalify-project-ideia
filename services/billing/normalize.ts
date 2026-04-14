@@ -1,5 +1,6 @@
+import { buildLocalDate, parseLocalDate, getValidDueDate } from "@/lib/utils/date";
 import type { BillingCycle, NormalizedBillingCycle, ClientBillingInfo } from "./types";
-import { computeCycleStatus } from "@/lib/utils";
+import { computeCycleStatus, logDev } from "@/lib/utils";
 
 export function getCurrentMonthKey(): { year: number; month: number } {
   const now = new Date();
@@ -11,30 +12,6 @@ export function getCurrentMonthKey(): { year: number; month: number } {
 
 export function getMonthKey(year: number, month: number): string {
   return `${year}-${String(month).padStart(2, "0")}`;
-}
-
-function buildLocalDate(year: number, month: number, day: number): Date {
-  return new Date(year, month - 1, day, 12, 0, 0, 0);
-}
-
-function parseLocalDate(value: string, fallback: Date): Date {
-  if (!value || value === "null") {
-    return fallback;
-  }
-
-  const [year, month, day] = value.split("-").map(Number);
-  if (!year || !month || !day) {
-    return fallback;
-  }
-  return buildLocalDate(year, month, day);
-}
-
-function getValidDueDate(year: number, month: number, dueDay: number): Date {
-  const candidate = buildLocalDate(year, month, dueDay);
-  if (candidate.getMonth() !== month - 1) {
-    return buildLocalDate(year, month + 1, 0);
-  }
-  return candidate;
 }
 
 export function parseReferenceDate(
@@ -160,7 +137,7 @@ export function createVirtualCurrentCycle(
 
 function generateCyclesFromCreatedAt(
   client: ClientBillingInfo,
-  upToDate?: Date,
+  maxCycles: number = 12,
 ): NormalizedBillingCycle[] {
   const dueDay = client.due_day || 5;
   
@@ -168,17 +145,16 @@ function generateCyclesFromCreatedAt(
   
   if (isNaN(createdDate.getTime())) {
     if (process.env.NODE_ENV === 'development') {
-      console.log('[normalize] Invalid createdDate:', client.created_at);
+      logDev('[normalize] Invalid createdDate:', client.created_at);
     }
     return [];
   }
 
   if (process.env.NODE_ENV === 'development') {
-    console.log('[normalize] Generating from createdDate:', createdDate.toISOString());
+    logDev('[normalize] Generating from createdDate:', createdDate.toISOString());
   }
 
   const cycles: NormalizedBillingCycle[] = [];
-  const maxCycles = 12;
 
   for (let i = 0; i < maxCycles; i++) {
     const cycleDate = new Date(createdDate);
@@ -220,8 +196,8 @@ function mergeCyclesWithDB(
   const merged = new Map<string, NormalizedBillingCycle>();
   
   if (process.env.NODE_ENV === 'development') {
-    console.log('[normalize] DB cycles:', dbCycles.length);
-    console.log('[normalize] Generated cycles:', generated.length, 'maxCycles:', maxCycles, 'isInstallment:', isInstallment);
+  logDev('[normalize] DB cycles:', dbCycles.length);
+  logDev('[normalize] Generated cycles:', generated.length, 'maxCycles:', maxCycles, 'isInstallment:', isInstallment);
   }
   
   // Primeiro: adicionar TODOS os ciclos do DB (fonte da verdade)
@@ -261,7 +237,7 @@ function mergeCyclesWithDB(
     for (const genCycle of generated) {
       if (maxCycles && merged.size >= maxCycles) {
         if (process.env.NODE_ENV === 'development') {
-          console.log('[normalize] Stopped filling gaps - reached maxCycles limit:', maxCycles);
+        logDev('[normalize] Stopped filling gaps - reached maxCycles limit:', maxCycles);
         }
         break;
       }
@@ -279,7 +255,7 @@ function mergeCyclesWithDB(
   );
   
   if (process.env.NODE_ENV === 'development') {
-    console.log('[normalize] Final result:', result.length);
+  logDev('[normalize] Final result:', result.length);
   }
   
   return result;
@@ -293,23 +269,20 @@ export function normalizeAndSortCycles(
     return dbCycles.map((cycle) => normalizeCycle(cycle));
   }
 
-  // Determinar tipo baseado em dados reais do cliente, NÃO em billing_type
-  // Se tem parcelas/ciclos definidos OU existem ciclos no banco → é INSTALLMENT
-  const isInstallment =
-    (client.total_installments && client.total_installments > 0) ||
-    (client.number_of_cycles && client.number_of_cycles > 0) ||
-    dbCycles.length > 0;
-
-  // Definir totalCycles: para installment usar o número de parcelas, senão 12
-  const totalCycles = isInstallment
-    ? client.total_installments ?? client.number_of_cycles ?? dbCycles.length
-    : 12;
-
-  const billingType = client.billing_type || 'monthly';
-
-  const generatedCycles = generateCyclesFromCreatedAt(client);
+  const isInstallment = !!(client.total_installments && client.total_installments > 0);
+  const totalCycles = isInstallment ? client.total_installments : 12;
   
-  // Se não há ciclos gerados (installment sem limite) mas há ciclos no banco
+  console.log('[CYCLES CHECK] normalize.ts', {
+    total_installments: client.total_installments,
+    isInstallment,
+    totalCycles,
+    dbCycles_count: dbCycles.length
+  });
+
+  const generatedCycles = generateCyclesFromCreatedAt(client, totalCycles);
+  
+  console.log('[CYCLES CHECK] normalize.ts generated:', generatedCycles.length);
+  
   if (generatedCycles.length === 0 && dbCycles.length > 0) {
     const dbNormalized = dbCycles.map((cycle) => normalizeCycle(cycle));
     return dbNormalized.slice(0, totalCycles);
@@ -323,12 +296,7 @@ export function normalizeAndSortCycles(
   const merged = mergeCyclesWithDB(generatedCycles, dbNormalized as NormalizedBillingCycle[], !!isInstallment, totalCycles);
   const finalCycles = merged.slice(0, totalCycles);
   
-  if (process.env.NODE_ENV === 'development') {
-    console.log('[normalize] isInstallment:', isInstallment);
-    console.log('[normalize] totalCycles:', totalCycles);
-    console.log('[normalize] Final cycles count:', finalCycles.length);
-    console.log('[normalize] Sample:', merged.slice(0,3).map(c => `${c.year}-${c.month}:${c.status}:${c.paidAmount}/${c.expectedAmount}`));
-  }
+  console.log('[CYCLES CHECK] normalize.ts final:', finalCycles.length);
   
   return finalCycles;
 }
