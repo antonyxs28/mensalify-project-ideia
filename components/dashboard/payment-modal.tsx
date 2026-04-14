@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useClientCycles, useAddPayment, type BillingCycle } from '@/hooks/use-billing-cycles'
+import { useClientCycles, useAddPayment, type BillingCycle } from '@/hooks/use-billing'
 import { formatCurrency } from '@/lib/validation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'

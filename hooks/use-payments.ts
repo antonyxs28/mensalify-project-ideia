@@ -1,9 +1,25 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/auth-context'
 import type { Payment } from '@/lib/types'
+
+async function getClientAuthHeaders(): Promise<HeadersInit> {
+  const response = await fetch('/api/auth/session', { credentials: 'include' });
+  const data = await response.json();
+  const session = data.session;
+
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+  }
+
+  if (session?.access_token) {
+    headers['Authorization'] = `Bearer ${session.access_token}`
+    headers['x-refresh-token'] = session.refresh_token || ''
+  }
+
+  return headers
+}
 
 export function usePayments(clientId?: string) {
   const { user } = useAuth()
@@ -14,17 +30,19 @@ export function usePayments(clientId?: string) {
 
   const fetchPayments = useCallback(async (currentClientId: string) => {
     try {
-      const { data, error } = await supabase
-        .from('payments')
-        .select('*')
-        .eq('client_id', currentClientId)
-        .order('month', { ascending: false })
+      const headers = await getClientAuthHeaders()
+      const response = await fetch(`/api/payments?clientId=${currentClientId}`, {
+        headers,
+        credentials: 'include',
+      })
 
-      if (error) {
-        throw error
+      if (!response.ok) {
+        const text = await response.text()
+        throw new Error(text || 'Failed to fetch payments')
       }
 
-      setPayments(data || [])
+      const result = await response.json()
+      setPayments(result.data || [])
     } catch (error: any) {
       console.error('Error fetching payments:', error)
       setError(error.message || 'Erro ao carregar pagamentos')
@@ -58,22 +76,26 @@ export function usePayments(clientId?: string) {
     }
 
     try {
-      const { data, error } = await supabase
-        .from('payments')
-        .insert({
+      const headers = await getClientAuthHeaders()
+      const response = await fetch('/api/payments', {
+        method: 'POST',
+        headers,
+        credentials: 'include',
+        body: JSON.stringify({
           client_id: clientId,
           month: paymentMonth.toISOString().split('T')[0],
           paid,
-          paid_at: paid ? new Date().toISOString() : null
-        })
-        .select()
-        .single()
+          paid_at: paid ? new Date().toISOString() : null,
+        }),
+      })
 
-      if (error) {
-        throw error
+      if (!response.ok) {
+        const text = await response.text()
+        throw new Error(text || 'Failed to add payment')
       }
 
-      setPayments(prev => [data, ...prev])
+      const result = await response.json()
+      setPayments(prev => [result.data, ...prev])
       return { success: true }
     } catch (error: any) {
       console.error('Error adding payment:', error)
@@ -83,16 +105,17 @@ export function usePayments(clientId?: string) {
 
   const markAsPaid = useCallback(async (paymentId: string): Promise<{ success: boolean; error?: string }> => {
     try {
-      const { error } = await supabase
-        .from('payments')
-        .update({
-          paid: true,
-          paid_at: new Date().toISOString()
-        })
-        .eq('id', paymentId)
+      const headers = await getClientAuthHeaders()
+      const response = await fetch(`/api/payments/${paymentId}`, {
+        method: 'PATCH',
+        headers,
+        credentials: 'include',
+        body: JSON.stringify({ paid: true }),
+      })
 
-      if (error) {
-        throw error
+      if (!response.ok) {
+        const text = await response.text()
+        throw new Error(text || 'Failed to mark as paid')
       }
 
       setPayments(prev => prev.map(payment => {
@@ -115,16 +138,17 @@ export function usePayments(clientId?: string) {
 
   const markAsPending = useCallback(async (paymentId: string): Promise<{ success: boolean; error?: string }> => {
     try {
-      const { error } = await supabase
-        .from('payments')
-        .update({
-          paid: false,
-          paid_at: null
-        })
-        .eq('id', paymentId)
+      const headers = await getClientAuthHeaders()
+      const response = await fetch(`/api/payments/${paymentId}`, {
+        method: 'PATCH',
+        headers,
+        credentials: 'include',
+        body: JSON.stringify({ paid: false }),
+      })
 
-      if (error) {
-        throw error
+      if (!response.ok) {
+        const text = await response.text()
+        throw new Error(text || 'Failed to mark as pending')
       }
 
       setPayments(prev => prev.map(payment => {
@@ -147,13 +171,16 @@ export function usePayments(clientId?: string) {
 
   const deletePayment = useCallback(async (paymentId: string): Promise<{ success: boolean; error?: string }> => {
     try {
-      const { error } = await supabase
-        .from('payments')
-        .delete()
-        .eq('id', paymentId)
+      const headers = await getClientAuthHeaders()
+      const response = await fetch(`/api/payments/${paymentId}`, {
+        method: 'DELETE',
+        headers,
+        credentials: 'include',
+      })
 
-      if (error) {
-        throw error
+      if (!response.ok) {
+        const text = await response.text()
+        throw new Error(text || 'Failed to delete payment')
       }
 
       setPayments(prev => prev.filter(payment => payment.id !== paymentId))
@@ -185,34 +212,19 @@ export function useAllPayments() {
 
   const fetchAllPayments = useCallback(async (currentUserId: string) => {
     try {
-      const { data: clients, error: clientsError } = await supabase
-        .from('clients')
-        .select('id')
-        .eq('user_id', currentUserId)
+      const headers = await getClientAuthHeaders()
+      const response = await fetch('/api/payments/all', {
+        headers,
+        credentials: 'include',
+      })
 
-      if (clientsError) {
-        throw clientsError
+      if (!response.ok) {
+        const text = await response.text()
+        throw new Error(text || 'Failed to fetch all payments')
       }
 
-      if (!clients || clients.length === 0) {
-        setPayments([])
-        setIsLoading(false)
-        return
-      }
-
-      const clientIds = clients.map(c => c.id)
-
-      const { data, error } = await supabase
-        .from('payments')
-        .select('*')
-        .in('client_id', clientIds)
-        .order('month', { ascending: false })
-
-      if (error) {
-        throw error
-      }
-
-      setPayments(data || [])
+      const result = await response.json()
+      setPayments(result.data || [])
     } catch (error: any) {
       console.error('Error fetching all payments:', error)
       setError(error.message || 'Erro ao carregar pagamentos')

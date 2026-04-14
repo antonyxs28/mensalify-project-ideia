@@ -17,8 +17,8 @@ import {
 } from 'recharts'
 import { Download, TrendingUp, Users, DollarSign, Calendar } from 'lucide-react'
 
-import { useClients } from '@/contexts/clients-context'
-import { useBillingStats } from '@/hooks/use-billing-cycles'
+import { useClients } from '@/hooks/use-clients'
+import { useBillingStats } from '@/hooks/use-billing'
 import { formatCurrency } from '@/lib/validation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'

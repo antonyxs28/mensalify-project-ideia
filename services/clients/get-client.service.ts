@@ -6,7 +6,9 @@ export async function getClient(
   userId: string,
   clientId: string,
 ): Promise<ServiceResult<Client>> {
-  console.log("[DEBUG] getClient - clientId:", clientId, "userId:", userId);
+  if (process.env.NODE_ENV === 'development') {
+    console.log("[DEBUG] getClient - clientId:", clientId, "userId:", userId);
+  }
 
   const { data, error } = await supabase
     .from("clients")
@@ -20,6 +22,8 @@ export async function getClient(
     return { success: false, error: `Client not found: ${error.message}` };
   }
 
-  console.log("[DB] getClient - Result:", JSON.stringify(data));
+  if (process.env.NODE_ENV === 'development') {
+    console.log("[DB] getClient - Result:", JSON.stringify(data));
+  }
   return { success: true, data };
 }

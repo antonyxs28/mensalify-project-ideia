@@ -3,7 +3,7 @@
 import { motion } from 'framer-motion'
 import { DollarSign, Clock, Users, TrendingUp, TrendingDown } from 'lucide-react'
 
-import { useClients } from '@/contexts/clients-context'
+import { useClients } from '@/hooks/use-clients'
 import { formatCurrency } from '@/lib/validation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 

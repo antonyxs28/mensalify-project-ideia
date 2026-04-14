@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { X, Loader2, User, Mail, Phone, DollarSign, Calendar, Repeat } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { useClients } from '@/contexts/clients-context'
+import { useClients } from '@/hooks/use-clients'
 import { isValidEmail, isValidName, isValidMonetaryValue, sanitizeInput } from '@/lib/validation'
 import type { ClientWithStatus } from '@/lib/types'
 import { Button } from '@/components/ui/button'

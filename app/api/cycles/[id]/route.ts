@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAuthenticatedContext } from "@/services/clients/auth";
-import { getCycleWithPayments, updateCycle, updateCycleSchema } from "@/services/billing-cycles";
+import { getCycleWithPayments, updateCycle, updateCycleSchema } from "@/services/billing";
 import { getClient } from "@/services/clients";
 
 interface RouteParams {
@@ -10,7 +10,9 @@ interface RouteParams {
 export async function GET(req: Request, { params }: RouteParams) {
   try {
     const { id: cycleId } = await params;
-    console.log("[API] GET /cycles/[id] - cycleId:", cycleId);
+    if (process.env.NODE_ENV === 'development') {
+      console.log("[API] GET /cycles/[id] - cycleId:", cycleId);
+    }
 
     const { supabase, userId } = await getAuthenticatedContext();
 
@@ -32,7 +34,9 @@ export async function GET(req: Request, { params }: RouteParams) {
         }
       });
     } catch (cycleError) {
-      console.warn("[API] billing_cycles not available:", cycleError);
+      if (process.env.NODE_ENV === 'development') {
+        console.warn("[API] billing_cycles not available:", cycleError);
+      }
       return NextResponse.json({ error: "Billing system not available" }, { status: 503 });
     }
   } catch (error) {
@@ -47,7 +51,9 @@ export async function GET(req: Request, { params }: RouteParams) {
 export async function PUT(req: Request, { params }: RouteParams) {
   try {
     const { id: cycleId } = await params;
-    console.log("[API] PUT /cycles/[id] - cycleId:", cycleId);
+    if (process.env.NODE_ENV === 'development') {
+      console.log("[API] PUT /cycles/[id] - cycleId:", cycleId);
+    }
 
     const { supabase, userId } = await getAuthenticatedContext();
 

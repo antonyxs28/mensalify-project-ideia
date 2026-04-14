@@ -12,12 +12,14 @@ export async function deleteClient({
   userId,
   clientId,
 }: DeleteClientParams): Promise<ServiceResult<void>> {
-  console.log(
-    "[DEBUG] deleteClient - clientId:",
-    clientId,
-    "userId:",
-    userId,
-  );
+  if (process.env.NODE_ENV === 'development') {
+    console.log(
+      "[DEBUG] deleteClient - clientId:",
+      clientId,
+      "userId:",
+      userId,
+    );
+  }
 
   const { error } = await supabase
     .from("clients")
@@ -33,6 +35,8 @@ export async function deleteClient({
     };
   }
 
-  console.log("[DB] deleteClient - Success");
+  if (process.env.NODE_ENV === 'development') {
+    console.log("[DB] deleteClient - Success");
+  }
   return { success: true };
 }

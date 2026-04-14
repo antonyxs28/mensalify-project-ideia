@@ -2,26 +2,10 @@ import { NextResponse } from "next/server";
 import { getAuthenticatedContext } from "@/services/clients/auth";
 import { getClient } from "@/services/clients";
 import { rebuildClientBillingCycles } from "@/services/clients/create-client.service";
+import { computeCycleStatus } from "@/lib/utils";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
-}
-
-function computeStatus(
-  paidAmount: number,
-  expectedAmount: number,
-  dueDate: string,
-): "pending" | "paid" | "overdue" | "partial" {
-  const today = new Date().toISOString().split("T")[0];
-  const isOverdue = dueDate ? today > dueDate : false;
-
-  if (paidAmount >= expectedAmount) {
-    return "paid";
-  }
-  if (paidAmount > 0) {
-    return "partial"; // ✅ parcial sempre ganha, independente de vencimento
-  }
-  return isOverdue ? "overdue" : "pending";
 }
 
 export async function GET(req: Request, { params }: RouteParams) {
@@ -65,7 +49,9 @@ export async function GET(req: Request, { params }: RouteParams) {
       }
 
       if (cyclesError) {
-        console.warn("[API] billing_cycles query error:", cyclesError.message);
+        if (process.env.NODE_ENV === 'development') {
+          console.warn("[API] billing_cycles query error:", cyclesError.message);
+        }
         return NextResponse.json(
           { error: cyclesError.message },
           { status: 500 },
@@ -85,7 +71,7 @@ export async function GET(req: Request, { params }: RouteParams) {
           reference_date:
             cycle.reference_date ||
             `${cycle.cycle_year}-${String(cycle.cycle_month).padStart(2, "0")}-01`,
-          status: computeStatus(
+          status: computeCycleStatus(
             cycle.paid_amount,
             cycle.expected_amount,
             cycle.due_date,

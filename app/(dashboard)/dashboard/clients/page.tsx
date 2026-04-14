@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { Plus, Search } from 'lucide-react'
 
-import { useClients } from '@/contexts/clients-context'
+import { useClients } from '@/hooks/use-clients'
 import type { ClientWithStatus } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'

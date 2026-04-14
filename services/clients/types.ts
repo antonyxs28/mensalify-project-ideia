@@ -1,19 +1,7 @@
 import { z } from "zod";
+import { type Client, type ServiceResult } from "@/lib/types";
 
-export interface Client {
-  id: string;
-  user_id: string;
-  name: string;
-  email: string | null;
-  phone: string | null;
-  monthly_price: number;
-  due_day: number;
-  billing_type: string | null;
-  total_installments: number;
-  number_of_cycles: number | null;
-  created_at: string;
-  updated_at: string | null;
-}
+export { Client, ServiceResult };
 
 export interface CreateClientData {
   name: string;
@@ -47,9 +35,3 @@ export const updateClientSchema = createClientSchema.partial().extend({
 });
 
 export type UpdateClientInput = z.infer<typeof updateClientSchema>;
-
-export interface ServiceResult<T> {
-  success: boolean;
-  data?: T;
-  error?: string;
-}

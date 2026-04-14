@@ -12,10 +12,14 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    console.log("[API] GET /clients/[id] - Starting, id:", id);
+    if (process.env.NODE_ENV === 'development') {
+      console.log("[API] GET /clients/[id] - Starting, id:", id);
+    }
 
     const { supabase, userId } = await getAuthenticatedContext();
-    console.log("[API] GET /clients/[id] - User ID:", userId);
+    if (process.env.NODE_ENV === 'development') {
+      console.log("[API] GET /clients/[id] - User ID:", userId);
+    }
 
     const result = await getClient(supabase, userId, id);
 
@@ -39,10 +43,14 @@ export async function PUT(
 ) {
   try {
     const { id } = await params;
-    console.log("[API] PUT /clients/[id] - Starting, id:", id);
+    if (process.env.NODE_ENV === 'development') {
+      console.log("[API] PUT /clients/[id] - Starting, id:", id);
+    }
 
     const { supabase, userId } = await getAuthenticatedContext();
-    console.log("[API] PUT /clients/[id] - User ID:", userId);
+    if (process.env.NODE_ENV === 'development') {
+      console.log("[API] PUT /clients/[id] - User ID:", userId);
+    }
 
     let body: unknown;
     try {
@@ -84,10 +92,14 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
-    console.log("[API] DELETE /clients/[id] - Starting, id:", id);
+    if (process.env.NODE_ENV === 'development') {
+      console.log("[API] DELETE /clients/[id] - Starting, id:", id);
+    }
 
     const { supabase, userId } = await getAuthenticatedContext();
-    console.log("[API] DELETE /clients/[id] - User ID:", userId);
+    if (process.env.NODE_ENV === 'development') {
+      console.log("[API] DELETE /clients/[id] - User ID:", userId);
+    }
 
     const result = await deleteClient({
       supabase,

@@ -5,7 +5,9 @@ export async function listClients(
   supabase: SupabaseClient,
   userId: string,
 ): Promise<ServiceResult<Client[]>> {
-  console.log("[DEBUG] Querying for user_id:", userId);
+  if (process.env.NODE_ENV === 'development') {
+    console.log("[DEBUG] Querying for user_id:", userId);
+  }
 
   const { data, error } = await supabase
     .from("clients")
@@ -13,11 +15,13 @@ export async function listClients(
     .eq("user_id", userId)
     .order("created_at", { ascending: true });
 
-  console.log("[DEBUG] Supabase select result:", JSON.stringify(data));
-  console.log(
-    "[DEBUG] Supabase select error:",
-    error ? JSON.stringify(error) : "null",
-  );
+  if (process.env.NODE_ENV === 'development') {
+    console.log("[DEBUG] Supabase select result:", JSON.stringify(data));
+    console.log(
+      "[DEBUG] Supabase select error:",
+      error ? JSON.stringify(error) : "null",
+    );
+  }
 
   if (error) {
     console.error(
@@ -27,10 +31,12 @@ export async function listClients(
     return { success: false, error: `Database error: ${error.message}` };
   }
 
-  console.log(
-    "[DB] listClients - Got data:",
-    data?.length || 0,
-    "records",
-  );
+  if (process.env.NODE_ENV === 'development') {
+    console.log(
+      "[DB] listClients - Got data:",
+      data?.length || 0,
+      "records",
+    );
+  }
   return { success: true, data: data || [] };
 }

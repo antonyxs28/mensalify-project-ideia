@@ -6,7 +6,7 @@ import { Edit, MoreHorizontal, Trash2, Loader2, Eye, DollarSign, Wallet, CreditC
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
 
-import { useClients } from '@/contexts/clients-context'
+import { useClients } from '@/hooks/use-clients'
 import { formatCurrency, formatDate } from '@/lib/validation'
 import type { ClientWithStatus } from '@/lib/types'
 

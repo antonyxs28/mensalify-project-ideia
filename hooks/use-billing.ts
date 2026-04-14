@@ -1,10 +1,14 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { supabase } from "@/lib/supabase/client";
+import { type BillingCycle, type BillingPayment } from "@/lib/types";
+
+export { BillingCycle, BillingPayment };
 
 async function getClientAuthHeaders(): Promise<HeadersInit> {
-  const { data: { session } } = await supabase.auth.getSession();
+  const response = await fetch('/api/auth/session', { credentials: 'include' });
+  const data = await response.json();
+  const session = data.session;
 
   const headers: HeadersInit = {
     "Content-Type": "application/json",
@@ -16,30 +20,6 @@ async function getClientAuthHeaders(): Promise<HeadersInit> {
   }
 
   return headers;
-}
-
-export interface BillingCycle {
-  id: string;
-  client_id: string;
-  cycle_year: number;
-  cycle_month: number;
-  due_date: string;
-  expected_amount: number;
-  paid_amount: number;
-  status: "pending" | "paid" | "overdue" | "partial";
-  created_at: string;
-  updated_at: string | null;
-}
-
-export interface BillingPayment {
-  id: string;
-  client_id: string;
-  billing_cycle_id: string | null;
-  month: string;
-  amount: number;
-  paid: boolean;
-  paid_at: string | null;
-  created_at: string;
 }
 
 export interface BillingStats {

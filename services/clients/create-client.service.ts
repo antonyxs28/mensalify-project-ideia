@@ -1,15 +1,6 @@
 import { type SupabaseClient } from "@supabase/supabase-js";
-import { Client, CreateClientData, ServiceResult } from "./types";
-
-interface ClientBillingInfo {
-  id: string;
-  monthly_price: number;
-  created_at: string;
-  due_day?: number | null;
-  billing_type?: string | null;
-  total_installments?: number | null;
-  number_of_cycles?: number | null;
-}
+import { type Client, type ServiceResult, type ClientBillingInfo } from "@/lib/types";
+import { type CreateClientData } from "./types";
 
 function buildLocalDate(year: number, month: number, day: number): Date {
   return new Date(year, month - 1, day, 12, 0, 0, 0);
@@ -210,7 +201,9 @@ export async function createClient({
 
   insertData.billing_type = billingType;
 
-  console.log("[DEBUG] Insert data:", JSON.stringify(insertData));
+  if (process.env.NODE_ENV === 'development') {
+    console.log("[DEBUG] Insert data:", JSON.stringify(insertData));
+  }
 
   const { data: result, error } = await supabase
     .from("clients")
@@ -218,14 +211,16 @@ export async function createClient({
     .select()
     .single();
 
-  console.log(
-    "[DEBUG] Supabase insert result:",
-    result ? JSON.stringify(result) : "null",
-  );
-  console.log(
-    "[DEBUG] Supabase insert error:",
-    error ? JSON.stringify(error) : "null",
-  );
+  if (process.env.NODE_ENV === 'development') {
+    console.log(
+      "[DEBUG] Supabase insert result:",
+      result ? JSON.stringify(result) : "null",
+    );
+    console.log(
+      "[DEBUG] Supabase insert error:",
+      error ? JSON.stringify(error) : "null",
+    );
+  }
 
   if (error) {
     console.error("[DB] createClient - Full error:", JSON.stringify(error));
@@ -236,7 +231,9 @@ export async function createClient({
     };
   }
 
-  console.log("[DB] createClient - Result:", JSON.stringify(result));
+  if (process.env.NODE_ENV === 'development') {
+    console.log("[DB] createClient - Result:", JSON.stringify(result));
+  }
 
   if (result && totalInstallments > 0) {
     const dueDay = (insertData.due_day as number) || 5;
@@ -289,15 +286,17 @@ export async function createClient({
       }
     }
 
-    console.log(
-      "[DEBUG] Generating cycles:",
-      cycles.map((c) => ({
-        year: c.cycle_year,
-        month: c.cycle_month,
-        due_date: c.due_date,
-        expected: c.expected_amount,
-      })),
-    );
+    if (process.env.NODE_ENV === 'development') {
+      console.log(
+        "[DEBUG] Generating cycles:",
+        cycles.map((c) => ({
+          year: c.cycle_year,
+          month: c.cycle_month,
+          due_date: c.due_date,
+          expected: c.expected_amount,
+        })),
+      );
+    }
 
     if (cycles.length > 0) {
       const { error: cyclesError } = await supabase

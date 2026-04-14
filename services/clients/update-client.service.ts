@@ -15,14 +15,14 @@ export async function updateClient({
   clientId,
   data,
 }: UpdateClientParams): Promise<ServiceResult<Client>> {
-  console.log(
-    "[DEBUG] updateClient - clientId:",
-    clientId,
-    "userId:",
-    userId,
-    "data:",
-    JSON.stringify(data),
-  );
+  if (process.env.NODE_ENV === 'development') {
+    console.log(
+      "[DEBUG] updateClient - clientId:",
+      clientId,
+      "userId:",
+      userId,
+    );
+  }
 
   const updateData: Record<string, unknown> = {};
   if (data.name !== undefined) {
@@ -121,6 +121,8 @@ export async function updateClient({
     }
   }
 
-  console.log("[DB] updateClient - Result:", JSON.stringify(result));
+  if (process.env.NODE_ENV === 'development') {
+    console.log("[DB] updateClient - Result:", JSON.stringify(result));
+  }
   return { success: true, data: result };
 }

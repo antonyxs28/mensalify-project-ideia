@@ -5,7 +5,7 @@ import { DollarSign, Loader2 } from "lucide-react";
 import {
   useClientCycles as useClientCyclesHook,
   type BillingCycle,
-} from "@/hooks/use-billing-cycles";
+} from "@/hooks/use-billing";
 import { formatCurrency } from "@/lib/validation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";

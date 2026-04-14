@@ -8,14 +8,6 @@ export interface AuthenticatedContext {
 
 export async function getAuthenticatedContext(): Promise<AuthenticatedContext> {
   const cookieStore = await cookies();
-  const allCookies = cookieStore.getAll();
-
-  if (process.env.NODE_ENV === 'development') {
-    console.log(
-      "[AUTH] Cookies present:",
-      allCookies.map((c) => c.name),
-    );
-  }
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -44,14 +36,6 @@ export async function getAuthenticatedContext(): Promise<AuthenticatedContext> {
     data: { user },
     error,
   } = await supabase.auth.getUser();
-  if (process.env.NODE_ENV === 'development') {
-    console.log(
-      "[AUTH] getAuthenticatedUser (cookies) - User:",
-      user?.id || "none",
-      "error:",
-      error?.message,
-    );
-  }
 
   if (!user) {
     const headersList = await headers();
@@ -60,23 +44,11 @@ export async function getAuthenticatedContext(): Promise<AuthenticatedContext> {
 
     if (authHeader?.startsWith("Bearer ")) {
       const token = authHeader.substring(7);
-      if (process.env.NODE_ENV === 'development') {
-        console.log("[AUTH] Trying token from Authorization header");
-        console.log("[AUTH] Refresh token available:", !!refreshToken);
-      }
 
       const {
         data: { user: tokenUser },
         error: tokenError,
       } = await supabase.auth.getUser(token);
-      if (process.env.NODE_ENV === 'development') {
-        console.log(
-          "[AUTH] getAuthenticatedUser (token) - User:",
-          tokenUser?.id || "none",
-          "error:",
-          tokenError?.message,
-        );
-      }
 
       if (tokenUser && !tokenError) {
         const refreshTok = refreshToken || ""
@@ -85,17 +57,10 @@ export async function getAuthenticatedContext(): Promise<AuthenticatedContext> {
           throw new Error("Unauthorized")
         }
 
-        const { error: setSessionError } = await supabase.auth.setSession({
+        await supabase.auth.setSession({
           access_token: token,
           refresh_token: refreshTok,
         });
-
-        if (process.env.NODE_ENV === 'development') {
-          console.log(
-            "[AUTH] Session set for RLS, error:",
-            setSessionError?.message || "none",
-          );
-        }
 
         return { supabase, userId: tokenUser.id };
       }

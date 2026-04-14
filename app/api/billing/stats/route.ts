@@ -1,19 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAuthenticatedContext } from "@/services/clients/auth";
 import { listClients } from "@/services/clients";
-
-function computeStatus(
-  paidAmount: number,
-  expectedAmount: number,
-  dueDate: string,
-): "pending" | "paid" | "overdue" | "partial" {
-  const today = new Date().toISOString().split("T")[0];
-  const isOverdue = dueDate ? today > dueDate : false;
-
-  if (paidAmount >= expectedAmount) return "paid";
-  if (paidAmount > 0) return "partial";
-  return isOverdue ? "overdue" : "pending";
-}
+import { computeCycleStatus } from "@/lib/utils";
 
 export async function GET() {
   try {
@@ -48,7 +36,7 @@ export async function GET() {
       .in("client_id", clientIds);
 
     for (const cycle of allCycles || []) {
-      const status = computeStatus(
+      const status = computeCycleStatus(
         cycle.paid_amount || 0,
         cycle.expected_amount || 0,
         cycle.due_date,

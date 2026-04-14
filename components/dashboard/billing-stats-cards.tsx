@@ -3,7 +3,7 @@
 import { motion } from 'framer-motion'
 import { DollarSign, Clock, AlertTriangle, Calendar } from 'lucide-react'
 
-import { useBillingStats, type BillingStats } from '@/hooks/use-billing-cycles'
+import { useBillingStats, type BillingStats } from '@/hooks/use-billing'
 import { formatCurrency } from '@/lib/validation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'

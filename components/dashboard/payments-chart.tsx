@@ -14,7 +14,7 @@ import {
   Cell,
 } from "recharts";
 
-import { useClients } from "@/contexts/clients-context";
+import { useClients } from '@/hooks/use-clients'
 import { formatCurrency } from "@/lib/validation";
 import { formatMonthLabel } from "@/lib/utils";
 import {

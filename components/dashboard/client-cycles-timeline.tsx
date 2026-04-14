@@ -17,7 +17,7 @@ import {
   useClientCycles,
   useAddPayment,
   type BillingCycle,
-} from "@/hooks/use-billing-cycles";
+} from "@/hooks/use-billing";
 import { formatCurrency } from "@/lib/validation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -27,9 +27,9 @@ import { supabase } from "@/lib/supabase/client";
 import {
   normalizeAndSortCycles,
   calculateStats,
-  computeStatus,
-} from "@/services/billing-cycles/normalize";
-import type { NormalizedBillingCycle } from "@/services/billing-cycles/types";
+} from "@/services/billing/normalize";
+import type { NormalizedBillingCycle } from "@/services/billing/types";
+import type { ClientBillingInfo } from "@/lib/types";
 
 async function getClientAuthHeaders(): Promise<HeadersInit> {
   const {
@@ -472,14 +472,14 @@ export function ClientCyclesTimeline({
   const [localCycles, setLocalCycles] = useState<NormalizedBillingCycle[]>([]);
   const [updateCounter, setUpdateCounter] = useState(0);
 
-  const clientInfo = useMemo(() => {
+  const clientInfo = useMemo((): ClientBillingInfo | null => {
     if (!clientCreatedAt) return null;
     return {
       id: clientId,
       created_at: clientCreatedAt,
       monthly_price: monthlyPrice,
       due_day: dueDay,
-      total_installments: 24,
+      billing_type: 'recurring',
     };
   }, [clientId, clientCreatedAt, monthlyPrice, dueDay]);
 

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAuthenticatedContext } from "@/services/clients/auth";
-import { payCycle, paymentSchema, getCycle } from "@/services/billing-cycles";
+import { payCycle, paymentSchema, getCycle } from "@/services/billing";
 import { getClient } from "@/services/clients";
 
 interface RouteParams {
@@ -10,7 +10,9 @@ interface RouteParams {
 export async function POST(req: Request, { params }: RouteParams) {
   try {
     const { id: cycleId } = await params;
-    console.log("[API] POST /cycles/[id]/pay - cycleId:", cycleId);
+    if (process.env.NODE_ENV === 'development') {
+      console.log("[API] POST /cycles/[id]/pay - cycleId:", cycleId);
+    }
 
     const { supabase, userId } = await getAuthenticatedContext();
 
@@ -45,7 +47,9 @@ export async function POST(req: Request, { params }: RouteParams) {
 
       return NextResponse.json({ data: payResult.data }, { status: 201 });
     } catch (cycleError) {
-      console.warn("[API] Billing system error:", cycleError);
+      if (process.env.NODE_ENV === 'development') {
+        console.warn("[API] Billing system error:", cycleError);
+      }
       return NextResponse.json({ error: "Billing system not available" }, { status: 503 });
     }
   } catch (error) {

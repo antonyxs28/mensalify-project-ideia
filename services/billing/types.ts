@@ -1,32 +1,10 @@
 import { z } from "zod";
+import { type BillingCycle, type BillingPayment, type ServiceResult, type ClientBillingInfo } from "@/lib/types";
 
-export interface BillingCycle {
-  id: string;
-  client_id: string;
-  cycle_year: number;
-  cycle_month: number;
-  reference_date?: string;
-  due_date?: string;
-  expected_amount: number;
-  paid_amount: number;
-  status?: "pending" | "paid" | "overdue" | "partial";
-  created_at?: string;
-  updated_at?: string | null;
-}
+export { BillingCycle, BillingPayment, ServiceResult, ClientBillingInfo };
 
 export interface BillingCycleWithPayments extends BillingCycle {
-  payments: Payment[];
-}
-
-export interface Payment {
-  id: string;
-  client_id: string;
-  billing_cycle_id: string | null;
-  month: string;
-  amount: number;
-  paid: boolean;
-  paid_at: string | null;
-  created_at: string;
+  payments: BillingPayment[];
 }
 
 export interface NormalizedBillingCycle {
@@ -59,9 +37,3 @@ export const paymentSchema = z.object({
 });
 
 export type PaymentInput = z.infer<typeof paymentSchema>;
-
-export interface ServiceResult<T> {
-  success: boolean;
-  data?: T;
-  error?: string;
-}

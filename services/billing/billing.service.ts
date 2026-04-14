@@ -1,11 +1,12 @@
 import { SupabaseClient } from "@supabase/supabase-js";
-import type { BillingCycle, ServiceResult } from "./types";
+import type { BillingCycle, ServiceResult, ClientBillingInfo } from "@/lib/types";
+import { computeCycleStatus } from "@/lib/utils";
 
-interface Client {
+interface ClientWithActive {
   id: string;
   monthly_price: number;
   created_at: string;
-  is_active: boolean;
+  is_active?: boolean;
   user_id: string;
 }
 
@@ -27,30 +28,13 @@ function formatLocalDate(date: Date): string {
   ).padStart(2, "0")}`;
 }
 
-function computeStatus(
-  paidAmount: number,
-  expectedAmount: number,
-  dueDate?: string,
-): BillingCycle["status"] {
-  const today = formatLocalDate(new Date());
-  const isOverdue = dueDate ? today > dueDate : false;
-
-  if (paidAmount >= expectedAmount) {
-    return "paid";
-  }
-  if (paidAmount > 0) {
-    return isOverdue ? "overdue" : "partial";
-  }
-  return isOverdue ? "overdue" : "pending";
-}
-
 export function calculateCycleStatus(
   cycle: Pick<BillingCycle, "paid_amount" | "expected_amount" | "due_date">,
 ): BillingCycle["status"] {
-  return computeStatus(
+  return computeCycleStatus(
     cycle.paid_amount,
     cycle.expected_amount,
-    cycle.due_date,
+    cycle.due_date || '',
   );
 }
 
@@ -66,7 +50,7 @@ function calculateDueDate(cycleYear: number, cycleMonth: number): string {
 
 export async function generateBillingCycles(
   supabase: SupabaseClient,
-  client: Client,
+  client: ClientWithActive,
   options: { upToMonth?: Date } = {},
 ): Promise<ServiceResult<{ generated: number; existing: number }>> {
   const upToDate = options.upToMonth || new Date();
@@ -178,10 +162,10 @@ export async function addPaymentToCycle(
   }
 
   const newPaidAmount = cycle.paid_amount + amount;
-  const newStatus = computeStatus(
+  const newStatus = computeCycleStatus(
     newPaidAmount,
     cycle.expected_amount,
-    cycle.due_date,
+    cycle.due_date || '',
   );
 
   const monthStr = `${cycle.cycle_year}-${String(cycle.cycle_month).padStart(2, "0")}-01`;

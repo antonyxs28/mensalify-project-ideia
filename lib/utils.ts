@@ -75,3 +75,41 @@ export function formatMonthLabel(monthKey: string): string {
   const monthIndex = parseInt(month, 10) - 1
   return `${MONTH_NAMES[monthIndex]} ${year.slice(2)}`
 }
+
+export function computeCycleStatus(
+  paidAmount: number,
+  expectedAmount: number,
+  dueDate: string,
+  billingType: string = "monthly",
+): "pending" | "paid" | "overdue" | "partial" | "overpaid" {
+  const OVERDUE_LIMITS = {
+    monthly: 30,
+    yearly: 365,
+  }
+
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  
+  const due = dueDate ? new Date(dueDate) : new Date()
+  due.setHours(0, 0, 0, 0)
+
+  const daysOverdue = Math.floor(
+    (today.getTime() - due.getTime()) / (1000 * 60 * 60 * 24),
+  )
+  const limit =
+    OVERDUE_LIMITS[billingType as keyof typeof OVERDUE_LIMITS] ||
+    OVERDUE_LIMITS.monthly
+  const isOverdue = daysOverdue > limit
+  const isCriticallyOverdue = daysOverdue > limit * 2
+
+  if (paidAmount > expectedAmount) {
+    return "overpaid"
+  }
+  if (paidAmount >= expectedAmount && paidAmount > 0) {
+    return "paid"
+  }
+  if (paidAmount > 0) {
+    return isCriticallyOverdue ? "overdue" : "partial"
+  }
+  return isCriticallyOverdue ? "overdue" : "pending"
+}
